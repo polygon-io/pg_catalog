@@ -386,6 +386,50 @@ pub fn rewrite_char_cast(sql: &str) -> Result<String> {
         .join("; "))
 }
 
+pub fn rewrite_xid_cast(sql: &str) -> Result<String> {
+    use sqlparser::ast::{
+        visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName,
+        ObjectNamePart,
+    };
+    use sqlparser::dialect::PostgreSqlDialect;
+    use sqlparser::parser::Parser;
+    use std::ops::ControlFlow;
+
+    fn is_xid(obj: &ObjectName) -> bool {
+        match obj.0.as_slice() {
+            [ObjectNamePart::Identifier(id)] if id.value.eq_ignore_ascii_case("xid") => true,
+            [ObjectNamePart::Identifier(schema), ObjectNamePart::Identifier(id)]
+                if schema.value.eq_ignore_ascii_case("pg_catalog")
+                    && id.value.eq_ignore_ascii_case("xid") => true,
+            _ => false,
+        }
+    }
+
+    let dialect = PostgreSqlDialect {};
+    let mut stmts = Parser::parse_sql(&dialect, sql)
+        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+    visit_statements_mut(&mut stmts, |stmt| {
+        visit_expressions_mut(stmt, |e| {
+            if let Expr::Cast { data_type, .. } = e {
+                if let DataType::Custom(obj, _) = data_type {
+                    if is_xid(obj) {
+                        *data_type = DataType::BigInt(None);
+                    }
+                }
+            }
+            ControlFlow::<()>::Continue(())
+        })?;
+        ControlFlow::Continue(())
+    });
+
+    Ok(stmts
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<_>>()
+        .join("; "))
+}
+
 pub fn rewrite_oid_cast(sql: &str) -> Result<String> {
     use sqlparser::ast::{
         visit_expressions_mut, visit_statements_mut, CastKind, DataType, Expr, Function,
@@ -1276,6 +1320,20 @@ mod tests {
 
         for (input, expected) in cases {
             assert_eq!(rewrite_char_cast(input).unwrap(), expected);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_rewrite_xid_cast() -> Result<(), Box<dyn std::error::Error>> {
+        let cases = vec![
+            ("SELECT x::xid", "SELECT x::BIGINT"),
+            ("SELECT x::pg_catalog.xid::text", "SELECT x::BIGINT::TEXT"),
+        ];
+
+        for (input, expected) in cases {
+            assert_eq!(rewrite_xid_cast(input).unwrap(), expected);
         }
 
         Ok(())
