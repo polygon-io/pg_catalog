@@ -106,3 +106,12 @@ exec_error error: NotImplemented("Unsupported SQL type Custom(ObjectName([Identi
 Implemented `rewrite_regprocedure_cast` to replace `regprocedure` casts with `TEXT`.
 Pipeline updated and dedicated tests ensure the rewrite works.
 
+
+# Task 10:
+exec_error query: "select E.oid        as id,\n       E.xmin       as state_number,\n       extname      as name,\n       extversion   as version,\n       extnamespace as schema_id,\n       nspname      as schema_name\n       ,\n       array(select unnest\n             from unnest(available_versions)\n             where unnest > extversion) as available_updates\n       \nfrom pg_catalog.pg_extension E\n       join pg_namespace N on E.extnamespace = N.oid\n       left join (select name, array_agg(version) as available_versions\n                  from pg_available_extension_versions()\n                  group by name) V on E.extname = V.name\n       \n--  where pg_catalog.age(E.xmin) <= #TXAGE"
+exec_error params: Some([])
+exec_error error: Plan("table function 'pg_available_extension_versions' not found")
+## # Task 10: Done
+Added a stub implementation for the `pg_available_extension_versions()`
+table function and registered it during server startup so IntelliJ queries can
+resolve successfully.
