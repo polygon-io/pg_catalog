@@ -593,6 +593,50 @@ pub fn rewrite_regprocedure_cast(sql: &str) -> Result<String> {
         .join("; "))
 }
 
+/// Replace casts to regproc with TEXT.
+pub fn rewrite_regproc_cast(sql: &str) -> Result<String> {
+    use sqlparser::ast::{
+        visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName,
+        ObjectNamePart,
+    };
+    use sqlparser::dialect::PostgreSqlDialect;
+    use sqlparser::parser::Parser;
+    use std::ops::ControlFlow;
+
+    fn is_regproc(obj: &ObjectName) -> bool {
+        match obj.0.as_slice() {
+            [ObjectNamePart::Identifier(id)] if id.value.eq_ignore_ascii_case("regproc") => true,
+            [ObjectNamePart::Identifier(schema), ObjectNamePart::Identifier(id)]
+                if schema.value.eq_ignore_ascii_case("pg_catalog") && id.value.eq_ignore_ascii_case("regproc") => true,
+            _ => false,
+        }
+    }
+
+    let dialect = PostgreSqlDialect {};
+    let mut stmts = Parser::parse_sql(&dialect, sql)
+        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+    visit_statements_mut(&mut stmts, |stmt| {
+        visit_expressions_mut(stmt, |e| {
+            if let Expr::Cast { data_type, .. } = e {
+                if let DataType::Custom(obj, _) = data_type {
+                    if is_regproc(obj) {
+                        *data_type = DataType::Text;
+                    }
+                }
+            }
+            ControlFlow::<()>::Continue(())
+        })?;
+        ControlFlow::Continue(())
+    });
+
+    Ok(stmts
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<_>>()
+        .join("; "))
+}
+
 /// Replace the available_updates sub-query in pg_extension queries with NULL.
 /// IntelliJ issues a correlated ARRAY sub-query over `available_versions`
 /// which our planner cannot resolve. Returning NULL keeps the column shape
@@ -1268,6 +1312,20 @@ mod tests {
 
         for (input, expected) in cases {
             assert_eq!(rewrite_regprocedure_cast(input).unwrap(), expected);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_rewrite_regproc_cast() -> Result<(), Box<dyn std::error::Error>> {
+        let cases = vec![
+            ("SELECT x::regproc", "SELECT x::TEXT"),
+            ("SELECT x::pg_catalog.regproc::varchar", "SELECT x::TEXT::VARCHAR"),
+        ];
+
+        for (input, expected) in cases {
+            assert_eq!(rewrite_regproc_cast(input).unwrap(), expected);
         }
 
         Ok(())
