@@ -461,6 +461,85 @@ pub fn rewrite_regoper_cast(sql: &str) -> Result<String> {
         .join("; "))
 }
 
+/// Replace the available_updates sub-query in pg_extension queries with NULL.
+/// IntelliJ issues a correlated ARRAY sub-query over `available_versions`
+/// which our planner cannot resolve. Returning NULL keeps the column shape
+/// without failing the query.
+pub fn rewrite_available_updates(sql: &str) -> Result<String> {
+    use sqlparser::ast::{
+        visit_expressions_mut, visit_statements_mut, Expr, Function, FunctionArguments,
+        FunctionArgExpr, FunctionArg, FunctionArgumentList, Ident, ObjectNamePart, Value, ValueWithSpan,
+        SetExpr, SelectItem, TableFactor, BinaryOperator,
+    };
+    use sqlparser::dialect::PostgreSqlDialect;
+    use sqlparser::parser::Parser;
+    use std::ops::ControlFlow;
+
+    let dialect = PostgreSqlDialect {};
+    let mut statements = Parser::parse_sql(&dialect, sql)
+        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+    let mut rewritten = false;
+
+    let _ = visit_statements_mut(&mut statements, |stmt| {
+        let inner = visit_expressions_mut(stmt, |expr| {
+            if let Expr::Function(Function { name, args, .. }) = expr {
+                let base = name
+                    .0
+                    .last()
+                    .and_then(|p| p.as_ident())
+                    .map(|id| id.value.to_lowercase())
+                    .unwrap_or_default();
+
+                if base == "array" {
+                    if let FunctionArguments::Subquery(subq) = args {
+                        if let SetExpr::Select(sel) = subq.body.as_ref() {
+                            let from_ok = sel.from.len() == 1 && matches!(
+                                sel.from[0].relation,
+                                TableFactor::UNNEST { .. }
+                            );
+                            let proj_ok = sel.projection.len() == 1 && matches!(
+                                sel.projection[0],
+                                SelectItem::UnnamedExpr(Expr::Identifier(ref id)) if id.value.eq_ignore_ascii_case("unnest")
+                            );
+                            let cond_ok = match &sel.selection {
+                                Some(Expr::BinaryOp { left, op: BinaryOperator::Gt, right }) => {
+                                    matches!(left.as_ref(), Expr::Identifier(ref id) if id.value.eq_ignore_ascii_case("unnest")) &&
+                                    matches!(right.as_ref(), Expr::Identifier(ref id) if id.value.eq_ignore_ascii_case("extversion"))
+                                }
+                                _ => false,
+                            };
+
+                            if from_ok && proj_ok && cond_ok {
+                                *expr = Expr::Value(ValueWithSpan { value: Value::Null, span: Span::empty() });
+                                rewritten = true;
+                                return ControlFlow::<DataFusionError, ()>::Continue(());
+                            }
+                        }
+                    }
+                }
+            }
+
+            ControlFlow::Continue(())
+        });
+
+        match inner {
+            ControlFlow::Break(e) => ControlFlow::Break(e),
+            ControlFlow::Continue(()) => ControlFlow::<DataFusionError, ()>::Continue(()),
+        }
+    });
+
+    if rewritten {
+        Ok(statements
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>()
+            .join("; "))
+    } else {
+        Ok(sql.to_owned())
+    }
+}
+
 
 pub fn strip_default_collate(sql: &str) -> Result<String> {
     /// we are dropping default collate, since datafusion doesnt support collates. 
@@ -1008,6 +1087,14 @@ mod tests {
         let expected = "SELECT NULL FROM pg_catalog.pg_constraint";
         assert_eq!(rewrite_regoper_cast(input).unwrap(), expected);
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_rewrite_available_updates() -> Result<(), Box<dyn std::error::Error>> {
+        let input = "SELECT array(select unnest from unnest(available_versions) where unnest > extversion)";
+        let expected = "SELECT NULL";
+        assert_eq!(rewrite_available_updates(input).unwrap(), expected);
         Ok(())
     }
 
