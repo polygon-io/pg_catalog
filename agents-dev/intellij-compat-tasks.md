@@ -1,305 +1,36 @@
-# Task 1 – implement current_user
-Query: select current_database(), current_schema(), current_user
-
-Params: []
-
-Error: Invalid function 'current_user' … Did you mean 'current_time'?
-
-Cause: DataFusion session lacks a current_user() scalar UDF.
-
-Fix: Register a zero-arg UDF that returns the login name (mirrors how current_database() is handled in server.rs). Add both current_user and pg_catalog.current_user aliases.
-
-Done: Added register_current_user in server.rs and called it for every query. The UDF uses client metadata to return the login name and registers pg_catalog.current_user alias. Added integration test verifying SELECT current_database(), current_schema(), current_user returns expected values.
-
-# Task 2 – add virtual columns 
-Query (excerpt):
-
-```
-select T.oid::bigint as id, T.spcname … T.xmin … pg_catalog.pg_tablespace_location(T.oid)
-from pg_catalog.pg_tablespace T
-Error:
-
-column 'xmin' not found in 't'
-
-```
-
-Cause:
-
-xmin is a system column not present in the static YAML schema.
-
-UDF pg_catalog.pg_tablespace_location currently registered without schema alias; caller uses schema-qualified name.
-
-
-you need to implement these columns
-
-System column	Type	What it really is
-ctid	tid	Physical location of the row on disk (block #, offset).
-xmin	xid	X-transaction min – the transaction ID that inserted this row/version.
-xmax	xid	Transaction ID that deleted (or is deleting) the row version. 0 means “still alive.”
-cmin/cmax	cid	Command IDs inside the inserting/deleting transaction (rarely queried directly).
-tableoid	oid	OID of the table this row belongs to (handy with inherited partitions or SET search_path).
-
-Fix:
-
-Extend parse_schema_* to include virtual system columns (xmin, etc.) with dummy values. So each table gets these columns/values. Unless these columns are defined in the schema yaml files.
-
-Done: build_table now injects ctid, xmin, xmax, cmin, cmax and tableoid with placeholder values. Tests verify the columns exist and remain hidden from wildcard selects.
-
-
-# Task 3- function for pg_tablespace
-
-Invalid function 'pg_catalog.pg_tablespace_location'
-
-When registering the existing pg_tablespace_location UDF, call .with_aliases(["pg_catalog.pg_tablespace_location"]).
-
-this can just return a dummy value.
-
-Done: the registration now includes the schema-qualified alias and a test exercises
-`SELECT pg_catalog.pg_tablespace_location('pg_default')`, expecting a NULL result.
-
-# Task 4 – reuse Task 1 for current_user inside pg_user query
-
-requires task 1
-
-Query: select usesuper from pg_user where usename = current_user
-
-Params: []
-
-Error: there is no pg_user table
-
-Solution: add a pg_user table dynamically - there is no schema to this. so you need to create the schema on the fly on startup
-
-postgres=# select * from pg_catalog.pg_user;
- usename | usesysid | usecreatedb | usesuper | userepl | usebypassrls |  passwd  | valuntil | useconfig
----------+----------+-------------+----------+---------+--------------+----------+----------+-----------
- abadur  |       10 | t           | t        | t       | t            | ******** |          |
- test    |    16385 | f           | f        | f       | f            | ******** |          |
- dbuser  |    27735 | t           | t        | f       | f            | ******** |          |
-(3 rows)
-
-postgres=# \d pg_user
-                        View "pg_catalog.pg_user"
-    Column    |           Type           | Collation | Nullable | Default
---------------+--------------------------+-----------+----------+---------
- usename      | name                     |           |          |
- usesysid     | oid                      |           |          |
- usecreatedb  | boolean                  |           |          |
- usesuper     | boolean                  |           |          |
- userepl      | boolean                  |           |          |
- usebypassrls | boolean                  |           |          |
- passwd       | text                     |           |          |
- valuntil     | timestamp with time zone |           |          |
- useconfig    | text[]                   | C         |          |
-
-
-# Task 5 – recognise oid as a scalar type in parameters
-Representative query: … where cls.relnamespace = $1::oid
-
-Params: binary OID value e.g. \x00\x00\x00\x08\x98
-
-Error: NotImplemented("Unsupported SQL type Custom … oid")
-
-Cause: The type-inference layer treats oid as a custom type; DataFusion doesn’t map it to a built-in type.
-
-Fix:
-
-Extend replace_regtype_cast or add a new rewrite to normalise ::oid casts to ::int4 (Postgres treats OID as uint32 internally).
-
-Update execute_sql_inner param decoding to accept Type::OID (code already handles INT2/4/8).
-
-Done: execute_sql_inner now converts OID parameters to BIGINT
-scalars so queries like `WHERE oid = $1::oid` work. A new integration
-test covers this case.
-
-# Task 6 – add array_agg shim
-Query (excerpt): select … array_agg(inhparent::bigint order by inhseqno)::varchar
-
-Error: Invalid function 'pg_catalog.array_agg'
-
-Cause: missing aggregate registration.
-
-Fix: create an aggregate UDF array_agg / pg_catalog.array_agg that reuses the existing ArrayCollector accumulator used for pg_get_array.
-
-DONE: Added register_array_agg using DataFusion's array_agg_udaf and alias pg_catalog.array_agg. Registered the UDF in the server and tests confirm it works.
-
-# Task 7 – add missing catalog columns (conexclop, etc.)
-Query: constraint metadata union
-
-Error: FieldNotFound { field: 'conexclop' }
-
-Cause: Column absent in static schema.
-
-Fix: pg_constraint table has with conexclop oid[] (nullable). but apparently it fails in unnest 
-```
-pgtry=> select conexclop from pg_catalog.pg_constraint limit 1;
- conexclop
------------
-
-(1 row)
-```
-
-but this fails
-
-```
-pgtry=> select array(select unnest from unnest(C.conexclop)) from pg_catalog.pg_constraint C;
-ERROR:  Schema error: No field named c.conexclop.
-```
-
-this query is rewritten to 
-
-final sql "WITH __cte1 AS (SELECT unnest AS col FROM UNNEST(C.conexclop)) SELECT pg_catalog.pg_get_array(__cte1.col) AS alias_1 FROM pg_catalog.pg_constraint AS C LEFT JOIN __cte1 ON true"
-
-find what the issue might be first. add comments to this "agents-dev/intellij-compat-tasks.md" on this task about the approach to take and how you can fix it. 
-
-fix it. 
-
-add tests for this use case.
-
-Approach: the column existed but the ARRAY subquery rewrite produced a
-correlated CTE referencing `C.conexclop`. DataFusion couldn't resolve this and
-raised a `FieldNotFound` error. We detect the specific pattern
-`ARRAY(SELECT unnest FROM UNNEST(col))` and replace it with the original column
-expression before further rewrites. The added functional test ensures the query
-now returns `NULL` instead of failing.
-
-# Task 8 – implement SHOW TRANSACTION ISOLATION LEVEL
-Query: SHOW TRANSACTION ISOLATION LEVEL
-
-Error: 'transaction.isolation.level' is not a variable which can be viewed with 'SHOW'
-
-Fix: intercept SHOW TRANSACTION ISOLATION LEVEL in SimpleQueryHandler / ExtendedQueryHandler and return a single-row result with text read committed (Postgres default).
-
-Implemented: the server now handles this statement directly and returns a single
-`transaction_isolation` column with the value `read committed`. Describe handlers
-also provide matching metadata so prepared queries work. Tests were added.
-
-# Task 9 - regoper::text
-
-Now this works
-
-```
-pgtry=> select array(select unnest from unnest(conexclop) ) from pg_catalog.pg_constraint;
-```
-
-but this doesnt work giving wrong error
-```
-pgtry=> select array(select unnest::regoper::varchar from unnest(conexclop) ) from pg_catalog.pg_constraint;
-ERROR:  Schema error: No field named conexclop.
-```
-
-possible cause is this. 
-
-```
-pgtry=> select conexclop::regoper::text from pg_catalog.pg_constraint;
-ERROR:  This feature is not implemented: Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: "regoper", quote_style: None, span: Span(Location(1,19)..Location(1,26)) })]), [])
-```
-
-since we keep conexclop as _text and it's always null, we can shortcut this ::regoper::{whatevertype} for now. just return null.
-
-Done: Added `rewrite_regoper_cast` which replaces casts to `regoper` with `NULL` and integrated it into the SQL rewrite pipeline. Functional and unit tests cover `conexclop::regoper::text` and array forms to ensure they return `NULL` instead of failing.
-
-# Task 10 - ::oid type
-
-these queries crash
-
-```
-select A.oid as access_method_id,\n       A.xmin as state_number,\n       A.amname as access_method_name\n       ,\n       A.amhandler::oid as handler_id,\n       pg_catalog.quote_ident(N.nspname) || '.' || pg_catalog.quote_ident(P.proname) as handler_name,\n       A.amtype as access_method_type\n       \nfrom pg_am A\n  join pg_proc P on A.amhandler::oid = P.oid\n  join pg_namespace N on P.pronamespace = N.oid\n  \n--  where pg_catalog.age(A.xmin) <= #TXAGE
-```
-
-because 
-
-```
-pgtry=> select amhandler::oid::text from pg_catalog.pg_am;
-ERROR:  This feature is not implemented: Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: "oid", quote_style: None, span: Span(Location(1,19)..Location(1,22)) })]), [])
-```
-
-We have register_scalar_regclass_oid which implements oid() udf.
-
-So you need to add ::oid type using oid() function. or rewrite column::oid as oid(column) (also handle scalar values $1::oid should work too)
-
-these queries work
-
-```
-pgtry=> SELECT 'pg_constraint'::regclass::oid;
- oid
-------
- 2606
-(1 row)
-```
-
-Done: Added rewrite_oid_cast that converts any `::oid` cast. String columns are
-rewritten to `oid(col)` while placeholders and numeric literals become plain
-INT8 casts. Tests verify `amhandler::oid` and parameter casts succeed.
-
-# Task 11 - this query should return 
-
-This requires task number 9 and 10. dont start if those tasks are not completed 
-
-This query should return without crashing. 
-
-```
-exec_error query: "select T.oid table_id,
-       relkind table_kind,
-       C.oid::bigint con_id,
-       C.xmin::varchar::bigint con_state_id,
-       conname con_name,
-       contype con_kind,
-       conkey con_columns,
-       conindid index_id,
-       confrelid ref_table_id,
-       condeferrable is_deferrable,
-       condeferred is_init_deferred,
-       confupdtype on_update,
-       confdeltype on_delete,
-      connoinherit no_inherit,
-      pg_catalog.pg_get_expr(conbin, T.oid) /* consrc */ con_expression,
-       confkey ref_columns,
-       conexclop::int[] excl_operators,
-       array(select unnest::regoper::varchar from unnest(conexclop)) excl_operators_str
-from pg_catalog.pg_constraint C
-         join pg_catalog.pg_class T
-              on C.conrelid = T.oid
-   where relkind in ('r', 'v', 'f', 'p')
-     and relnamespace = $1::oid
-     and contype in ('p', 'u', 'f', 'c', 'x')
-     and connamespace = $2::oid 
-```
-
-# Task 12 - fix missing functions
-
-Implemented stubs for missing functions and registered them with the server:
-
-* `quote_ident` simply echoes its argument.
-* `translate` performs basic character substitution.
-* `pg_get_viewdef`, `pg_get_function_arguments` and `pg_get_indexdef` now return
-  NULL placeholders.
-* Added an alias for `pg_get_expr` so unqualified calls succeed.
-
-Integration tests exercise these functions and confirm they return expected
-placeholder values.
-
-# Task 13 - type coercion
-
-ERROR: Error during planning: Failed to coerce arguments to satisfy a call to 'pg_catalog.pg_get_expr' function: coercion from [Utf8, Int64] to the signature OneOf([Exact([Utf8, Int32]), Exact([Utf8, Int32, Boolean])]) failed No function matches the given name and argument types 'pg_catalog.pg_get_expr(Utf8, Int64)'. You might need to add explicit type casts.
-Candidate functions:
-pg_catalog.pg_get_expr(Utf8, Int32)
-pg_catalog.pg_get_expr(Utf8, Int32, Boolean).
-
-Done: The pg_get_expr UDF now accepts BIGINT for the relation
-OID argument, matching casts produced by rewrite_oid_cast. A
-new integration test exercises `SELECT pg_catalog.pg_get_expr('hello', 1::oid)`
-and confirms the function succeeds.
-
-
-# Task 14 - other errors
-
-ERROR: Schema error: No field named available_versions.
-ERROR: This feature is not implemented: Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: "char", quote_style: Some('"'), span: Span(Location(1,632)..Location(1,638)) })]), []).
-ERROR: Error during planning: Column in SELECT must be in GROUP BY or an aggregate function: While expanding wildcard, column "pg_catalog.pg_inherits.inhrelid" must appear in the GROUP BY clause or must be part of an aggregate function, currently only "array_agg(pg_catalog.pg_inherits.inhparent) ORDER BY [pg_catalog.pg_inherits.inhseqno ASC NULLS LAST]" appears in the SELECT clause satisfies this requirement.
-ERROR: Schema error: No field named prorettype. Valid fields are schema_procs.alias_2, schema_procs.alias_3, schema_procs.alias_4.
-ERROR: This feature is not implemented: Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: "regproc", quote_style: None, span: Span(Location(1,279)..Location(1,286)) })]), []).
-ERROR: This feature is not implemented: Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: "regoperator", quote_style: None, span: Span(Location(1,80)..Location(1,91)) })]), []).
-ERROR: This feature is not implemented: Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: "regprocedure", quote_style: None, span: Span(Location(1,77)..Location(1,89)) })]), []).
-ERROR: Schema error: No field named ind_stor.oid. Valid fields are pg_catalog.pg_inherits.inhdetachpending, pg_catalog.pg_inherits.inhparent, pg_catalog.pg_inherits.inhrelid, pg_catalog.pg_inherits.inhseqno, pg_catalog.pg_inherits.xmin, pg_catalog.pg_inherits.xmax, pg_catalog.pg_inherits.ctid, pg_catalog.pg_inherits.tableoid, pg_catalog.pg_inherits.cmin, pg_catalog.pg_inherits.cmax.
-
-# Task 15 - 
+# Task 1:
+exec_error query: "select E.oid        as id,\n       E.xmin       as state_number,\n       extname      as name,\n       extversion   as version,\n       extnamespace as schema_id,\n       nspname      as schema_name\n       ,\n       array(select unnest\n             from unnest(available_versions)\n             where unnest > extversion) as available_updates\n       \nfrom pg_catalog.pg_extension E\n       join pg_namespace N on E.extnamespace = N.oid\n       left join (select name, array_agg(version) as available_versions\n                  from pg_available_extension_versions()\n                  group by name) V on E.extname = V.name\n       \n--  where pg_catalog.age(E.xmin) <= #TXAGE"
+exec_error params: Some([])
+exec_error error: SchemaError(FieldNotFound { field: Column { relation: None, name: "available_versions" }, valid_fields: [] }, Some(""))
+# Task 2:
+exec_error query: "select T.oid as type_id,\n       T.xmin as type_state_number,\n       T.typname as type_name,\n       T.typtype as type_sub_kind,\n       T.typcategory as type_category,\n       T.typrelid as class_id,\n       T.typbasetype as base_type_id,\n       case when T.typtype in ('c','e') then null\n            else pg_catalog.format_type(T.typbasetype, T.typtypmod) end as type_def,\n       T.typndims as dimensions_number,\n       T.typdefault as default_expression,\n       T.typnotnull as mandatory,\n       pg_catalog.pg_get_userbyid(T.typowner) as \"owner\"\nfrom pg_catalog.pg_type T\n         left outer join pg_catalog.pg_class C\n             on T.typrelid = C.oid\nwhere T.typnamespace = $1::oid\n  --  and T.typname in ( :[*f_names] )\n  --  and pg_catalog.age(T.xmin) <= #TXAGE\n  and (T.typtype in ('d','e') or\n       C.relkind = 'c'::\"char\" or\n       (T.typtype = 'b' and (T.typelem = 0 OR T.typcategory <> 'A')) or\n       T.typtype = 'p' and not T.typisdefined)\norder by 1"
+exec_error params: Some([Some(b"\0\0\0\0\0\0\x08\x98")])
+exec_error error: NotImplemented("Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: \"char\", quote_style: Some('\"'), span: Span(Location(1,632)..Location(1,638)) })]), [])")
+# Task 3:
+exec_error query: "select T.relkind as table_kind,\n       T.relname as table_name,\n       T.oid as table_id,\n       T.xmin as table_state_number,\n       false /* T.relhasoids */ as table_with_oids,\n       T.reltablespace as tablespace_id,\n       T.reloptions as options,\n       T.relpersistence as persistence,\n       (select pg_catalog.array_agg(inhparent::bigint order by inhseqno)::varchar from pg_catalog.pg_inherits where T.oid = inhrelid) as ancestors,\n       (select pg_catalog.array_agg(inhrelid::bigint order by inhrelid)::varchar from pg_catalog.pg_inherits where T.oid = inhparent) as successors,\n       T.relispartition /* false */ as is_partition,\n       pg_catalog.pg_get_partkeydef(T.oid) /* null */ as partition_key,\n       pg_catalog.pg_get_expr(T.relpartbound, T.oid) /* null */ as partition_expression,\n       T.relam am_id,\n       pg_catalog.pg_get_userbyid(T.relowner) as \"owner\"\nfrom pg_catalog.pg_class T\nwhere relnamespace = $1::oid\n       and relkind in ('r', 'm', 'v', 'f', 'p')\n--  and pg_catalog.age(T.xmin) <= #TXAGE\n--  and T.relname in ( :[*f_names] )\norder by table_kind, table_id"
+exec_error params: Some([Some(b"\0\0\0\0\0\0\x08\x98")])
+exec_error error: Diagnostic(Diagnostic { kind: Error, message: "'pg_catalog.pg_inherits.inhrelid' must appear in GROUP BY clause because it's not an aggregate expression", span: None, notes: [], helps: [DiagnosticHelp { message: "Either add 'pg_catalog.pg_inherits.inhrelid' to GROUP BY clause, or use an aggregare function like ANY_VALUE(pg_catalog.pg_inherits.inhrelid)", span: None }] }, Plan("Column in SELECT must be in GROUP BY or an aggregate function: While expanding wildcard, column \"pg_catalog.pg_inherits.inhrelid\" must appear in the GROUP BY clause or must be part of an aggregate function, currently only \"array_agg(pg_catalog.pg_inherits.inhparent) ORDER BY [pg_catalog.pg_inherits.inhseqno ASC NULLS LAST]\" appears in the SELECT clause satisfies this requirement"))
+# Task 4:
+exec_error query: "with schema_procs as (select prorettype, proargtypes, proallargtypes\n                      from pg_catalog.pg_proc\n                      where pronamespace = $1::oid\n                        /* and pg_catalog.age(xmin) <= #TXAGE */ ),\n     schema_opers as (select oprleft, oprright, oprresult\n                      from pg_catalog.pg_operator\n                      where oprnamespace = $2::oid\n                        /* and pg_catalog.age(xmin) <= #TXAGE */ ),\n     schema_aggregates as (select A.aggtranstype , A.aggmtranstype \n                           from pg_catalog.pg_aggregate A\n                           join pg_catalog.pg_proc P\n                             on A.aggfnoid = P.oid\n                           where P.pronamespace = $3::oid\n                           /* and (pg_catalog.age(A.xmin) <= #TXAGE or pg_catalog.age(P.xmin) <= #TXAGE) */),\n     schema_arg_types as ( select prorettype as type_id\n                           from schema_procs\n                           union\n                           select distinct unnest(proargtypes) as type_id\n                           from schema_procs\n                           union\n                           select distinct unnest(proallargtypes) as type_id\n                           from schema_procs\n                           union\n                           select oprleft as type_id\n                           from schema_opers\n                           where oprleft is not null\n                           union\n                           select oprright as type_id\n                           from schema_opers\n                           where oprright is not null\n                           union\n                           select oprresult as type_id\n                           from schema_opers\n                           where oprresult is not null\n                           union\n                           select aggtranstype::oid as type_id\n                           from schema_aggregates\n                           union\n                           select aggmtranstype::oid as type_id\n                           from schema_aggregates\n                           \n                           )\nselect type_id, pg_catalog.format_type(type_id, null) as type_spec\nfrom schema_arg_types\nwhere type_id <> 0 -- todo unclear how to frag"
+exec_error params: Some([Some(b"\0\0\0\0\0\0\x08\x98"), Some(b"\0\0\0\0\0\0\x08\x98"), Some(b"\0\0\0\0\0\0\x08\x98")])
+exec_error error: Collection([Collection([Collection([Collection([Collection([Collection([Collection([Diagnostic(Diagnostic { kind: Error, message: "column 'prorettype' not found", span: None, notes: [], helps: [] }, SchemaError(FieldNotFound { field: Column { relation: None, name: "prorettype" }, valid_fields: [Column { relation: Some(Bare { table: "schema_procs" }), name: "alias_2" }, Column { relation: Some(Bare { table: "schema_procs" }), name: "alias_3" }, Column { relation: Some(Bare { table: "schema_procs" }), name: "alias_4" }] }, Some(""))), SchemaError(FieldNotFound { field: Column { relation: None, name: "proargtypes" }, valid_fields: [Column { relation: Some(Bare { table: "schema_procs" }), name: "alias_2" }, Column { relation: Some(Bare { table: "schema_procs" }), name: "alias_3" }, Column { relation: Some(Bare { table: "schema_procs" }), name: "alias_4" }] }, Some(""))]), SchemaError(FieldNotFound { field: Column { relation: None, name: "proallargtypes" }, valid_fields: [Column { relation: Some(Bare { table: "schema_procs" }), name: "alias_2" }, Column { relation: Some(Bare { table: "schema_procs" }), name: "alias_3" }, Column { relation: Some(Bare { table: "schema_procs" }), name: "alias_4" }] }, Some(""))]), Diagnostic(Diagnostic { kind: Error, message: "column 'oprleft' not found", span: None, notes: [], helps: [] }, SchemaError(FieldNotFound { field: Column { relation: None, name: "oprleft" }, valid_fields: [Column { relation: Some(Bare { table: "schema_opers" }), name: "alias_5" }, Column { relation: Some(Bare { table: "schema_opers" }), name: "alias_6" }, Column { relation: Some(Bare { table: "schema_opers" }), name: "alias_7" }] }, Some("")))]), Diagnostic(Diagnostic { kind: Error, message: "column 'oprright' not found", span: None, notes: [], helps: [] }, SchemaError(FieldNotFound { field: Column { relation: None, name: "oprright" }, valid_fields: [Column { relation: Some(Bare { table: "schema_opers" }), name: "alias_5" }, Column { relation: Some(Bare { table: "schema_opers" }), name: "alias_6" }, Column { relation: Some(Bare { table: "schema_opers" }), name: "alias_7" }] }, Some("")))]), Diagnostic(Diagnostic { kind: Error, message: "column 'oprresult' not found", span: None, notes: [], helps: [] }, SchemaError(FieldNotFound { field: Column { relation: None, name: "oprresult" }, valid_fields: [Column { relation: Some(Bare { table: "schema_opers" }), name: "alias_5" }, Column { relation: Some(Bare { table: "schema_opers" }), name: "alias_6" }, Column { relation: Some(Bare { table: "schema_opers" }), name: "alias_7" }] }, Some("")))]), Diagnostic(Diagnostic { kind: Error, message: "column 'aggtranstype' not found", span: None, notes: [], helps: [] }, SchemaError(FieldNotFound { field: Column { relation: None, name: "aggtranstype" }, valid_fields: [Column { relation: Some(Bare { table: "schema_aggregates" }), name: "alias_8" }, Column { relation: Some(Bare { table: "schema_aggregates" }), name: "alias_9" }] }, Some("")))]), Diagnostic(Diagnostic { kind: Error, message: "column 'aggmtranstype' not found", span: None, notes: [], helps: [] }, SchemaError(FieldNotFound { field: Column { relation: None, name: "aggmtranstype" }, valid_fields: [Column { relation: Some(Bare { table: "schema_aggregates" }), name: "alias_8" }, Column { relation: Some(Bare { table: "schema_aggregates" }), name: "alias_9" }] }, Some("")))])
+# Task 5:
+exec_error query: "select P.oid as aggregate_id,\n       P.xmin as state_number,\n       P.proname as aggregate_name,\n       P.proargnames as arg_names,\n       P.proargmodes as arg_modes,\n       P.proargtypes::int[] as in_arg_types,\n       P.proallargtypes::int[] as all_arg_types,\n       A.aggtransfn::oid as transition_function_id,\n       A.aggtransfn::regproc::text as transition_function_name,\n       A.aggtranstype as transition_type,\n       A.aggfinalfn::oid as final_function_id,\n       case when A.aggfinalfn::oid = 0 then null else A.aggfinalfn::regproc::varchar end as final_function_name,\n       case when A.aggfinalfn::oid = 0 then 0 else P.prorettype end as final_return_type,\n       A.agginitval as initial_value,\n       A.aggsortop as sort_operator_id,\n       case when A.aggsortop = 0 then null else A.aggsortop::regoper::varchar end as sort_operator_name,\n       pg_catalog.pg_get_userbyid(P.proowner) as \"owner\"\n       ,\n       A.aggfinalextra as final_extra,\n       A.aggtransspace as state_size,\n       A.aggmtransfn::oid as moving_transition_id,\n       case when A.aggmtransfn::oid = 0 then null else A.aggmtransfn::regproc::varchar end as moving_transition_name,\n       A.aggminvtransfn::oid as inverse_transition_id,\n       case when A.aggminvtransfn::oid = 0 then null else A.aggminvtransfn::regproc::varchar end as inverse_transition_name,\n       A.aggmtranstype::oid as moving_state_type,\n       A.aggmtransspace as moving_state_size,\n       A.aggmfinalfn::oid as moving_final_id,\n       case when A.aggmfinalfn::oid = 0 then null else A.aggmfinalfn::regproc::varchar end as moving_final_name,\n       A.aggmfinalextra as moving_final_extra,\n       A.aggminitval as moving_initial_value,\n       A.aggkind as aggregate_kind,\n       A.aggnumdirectargs as direct_args\n       \n       ,\n       A.aggcombinefn::oid as combine_function_id,\n       case when A.aggcombinefn::oid = 0 then null else A.aggcombinefn::regproc::varchar end as combine_function_name,\n       A.aggserialfn::oid as serialization_function_id,\n       case when A.aggserialfn::oid = 0 then null else A.aggserialfn::regproc::varchar end as serialization_function_name,\n       A.aggdeserialfn::oid as deserialization_function_id,\n       case when A.aggdeserialfn::oid = 0 then null else A.aggdeserialfn::regproc::varchar end as deserialization_function_name,\n       P.proparallel as concurrency_kind\n       \nfrom pg_catalog.pg_aggregate A\njoin pg_catalog.pg_proc P\n  on A.aggfnoid = P.oid\nwhere P.pronamespace = $1::oid\n--  and P.proname in ( :[*f_names] )\n--  and (pg_catalog.age(A.xmin) <= #TXAGE or pg_catalog.age(P.xmin) <= #TXAGE)\norder by P.oid"
+exec_error params: Some([Some(b"\0\0\0\0\0\0\x08\x98")])
+exec_error error: Collection([NotImplemented("Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: \"regproc\", quote_style: None, span: Span(Location(1,279)..Location(1,286)) })]), [])"), NotImplemented("Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: \"regproc\", quote_style: None, span: Span(Location(1,458)..Location(1,465)) })]), [])"), NotImplemented("Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: \"regproc\", quote_style: None, span: Span(Location(1,953)..Location(1,960)) })]), [])"), NotImplemented("Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: \"regproc\", quote_style: None, span: Span(Location(1,1118)..Location(1,1125)) })]), [])"), NotImplemented("Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: \"regproc\", quote_style: None, span: Span(Location(1,1351)..Location(1,1358)) })]), [])"), NotImplemented("Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: \"regproc\", quote_style: None, span: Span(Location(1,1646)..Location(1,1653)) })]), [])"), NotImplemented("Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: \"regproc\", quote_style: None, span: Span(Location(1,1805)..Location(1,1812)) })]), [])"), NotImplemented("Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: \"regproc\", quote_style: None, span: Span(Location(1,1978)..Location(1,1985)) })]), [])")])
+# Task 6:
+exec_error query: "select O.oid as id,\n       O.amopstrategy as strategy,\n       O.amopopr as op_id,\n       O.amopopr::regoperator::varchar as op_sig,\n       O.amopsortfamily /* null */ as sort_family_id,\n       SF.opfname /* null */ as sort_family,\n       O.amopfamily as family_id,\n       C.oid as class_id\nfrom pg_catalog.pg_amop O\n    left join pg_opfamily F on O.amopfamily = F.oid\n    left join pg_opfamily SF on O.amopsortfamily = SF.oid\n    left join pg_depend D on D.classid = 'pg_amop'::regclass and O.oid = D.objid and D.objsubid = 0\n    left join pg_opclass C on D.refclassid = 'pg_opclass'::regclass and C.oid = D.refobjid and D.refobjsubid = 0\nwhere C.opcnamespace = $1::oid or C.opcnamespace is null and F.opfnamespace = $2::oid\n  --  and pg_catalog.age(O.xmin) <= #TXAGE\norder by C.oid, F.oid"
+exec_error params: Some([Some(b"\0\0\0\0\0\0\x08\x98"), Some(b"\0\0\0\0\0\0\x08\x98")])
+exec_error error: NotImplemented("Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: \"regoperator\", quote_style: None, span: Span(Location(1,80)..Location(1,91)) })]), [])")
+# Task 7:
+exec_error query: "select P.oid as id,\n       P.amprocnum as num,\n       P.amproc::oid as proc_id,\n       P.amproc::regprocedure::varchar as proc_sig,\n       P.amproclefttype::regtype::varchar as left_type,\n       P.amprocrighttype::regtype::varchar as right_type,\n       P.amprocfamily as family_id,\n       C.oid as class_id\nfrom pg_catalog.pg_amproc P\n    left join pg_opfamily F on P.amprocfamily = F.oid\n    left join pg_depend D on D.classid = 'pg_amproc'::regclass and P.oid = D.objid and D.objsubid = 0\n    left join pg_opclass C on D.refclassid = 'pg_opclass'::regclass and C.oid = D.refobjid and D.refobjsubid = 0\nwhere C.opcnamespace = $1::oid or C.opcnamespace is null and F.opfnamespace = $2::oid\n  --  and pg_catalog.age(P.xmin) <= #TXAGE\norder by C.oid, F.oid"
+exec_error params: Some([Some(b"\0\0\0\0\0\0\x08\x98"), Some(b"\0\0\0\0\0\0\x08\x98")])
+exec_error error: NotImplemented("Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: \"regprocedure\", quote_style: None, span: Span(Location(1,77)..Location(1,89)) })]), [])")
+# Task 8:
+exec_error query: "select tab.oid               table_id,\n       tab.relkind           table_kind,\n       ind_stor.relname      index_name,\n       ind_head.indexrelid   index_id,\n       ind_stor.xmin         state_number,\n       ind_head.indisunique  is_unique,\n       ind_head.indisprimary is_primary,\n       /* ind_head.indnullsnotdistinct */false  nulls_not_distinct,\n       pg_catalog.pg_get_expr(ind_head.indpred, ind_head.indrelid) as condition,\n       (select pg_catalog.array_agg(inhparent::bigint order by inhseqno)::varchar from pg_catalog.pg_inherits where ind_stor.oid = inhrelid) as ancestors,\n       ind_stor.reltablespace tablespace_id,\n       opcmethod as access_method_id\nfrom pg_catalog.pg_class tab\n         join pg_catalog.pg_index ind_head\n              on ind_head.indrelid = tab.oid\n         join pg_catalog.pg_class ind_stor\n              on tab.relnamespace = ind_stor.relnamespace and ind_stor.oid = ind_head.indexrelid\n         left join pg_catalog.pg_opclass on pg_opclass.oid = ANY(indclass)\nwhere tab.relnamespace = $1::oid\n        and tab.relkind in ('r', 'm', 'v', 'p')\n        and ind_stor.relkind in ('i', 'I')\n--  and tab.relname in ( :[*f_names] )\n--  and pg_catalog.age(ind_stor.xmin) <= #TXAGE"
+exec_error params: Some([Some(b"\0\0\0\0\0\0\x08\x98")])
+exec_error error: Diagnostic(Diagnostic { kind: Error, message: "column 'oid' not found in 'ind_stor'", span: None, notes: [DiagnosticNote { message: "possible column pg_catalog.pg_inherits.ctid", span: None }], helps: [] }, SchemaError(FieldNotFound { field: Column { relation: Some(Bare { table: "ind_stor" }), name: "oid" }, valid_fields: [Column { relation: Some(Partial { schema: "pg_catalog", table: "pg_inherits" }), name: "inhdetachpending" }, Column { relation: Some(Partial { schema: "pg_catalog", table: "pg_inherits" }), name: "inhparent" }, Column { relation: Some(Partial { schema: "pg_catalog", table: "pg_inherits" }), name: "inhrelid" }, Column { relation: Some(Partial { schema: "pg_catalog", table: "pg_inherits" }), name: "inhseqno" }, Column { relation: Some(Partial { schema: "pg_catalog", table: "pg_inherits" }), name: "xmin" }, Column { relation: Some(Partial { schema: "pg_catalog", table: "pg_inherits" }), name: "xmax" }, Column { relation: Some(Partial { schema: "pg_catalog", table: "pg_inherits" }), name: "ctid" }, Column { relation: Some(Partial { schema: "pg_catalog", table: "pg_inherits" }), name: "tableoid" }, Column { relation: Some(Partial { schema: "pg_catalog", table: "pg_inherits" }), name: "cmin" }, Column { relation: Some(Partial { schema: "pg_catalog", table: "pg_inherits" }), name: "cmax" }] }, Some("")))
+# Task 9:
+exec_error query: "with system_languages as ( select oid as lang\n                           from pg_catalog.pg_language\n                           where lanname in ('c','internal') )\nselect oid as id,\n       pg_catalog.pg_get_function_arguments(oid) as arguments_def,\n       pg_catalog.pg_get_function_result(oid) as result_def,\n       pg_catalog.pg_get_function_sqlbody(oid) /* null */ as sqlbody_def,\n       prosrc as source_text\nfrom pg_catalog.pg_proc\nwhere pronamespace = $1::oid\n  --  and pg_proc.proname in ( :[*f_names] )\n  --  and pg_catalog.age(xmin) <= #SRCTXAGE\n  and not (prokind = 'a') /* proisagg */\n  and prolang not in (select lang from system_languages)\n  and prosrc is not null"
+exec_error params: Some([Some(b"\0\0\0\0\0\0\x08\x98")])
+exec_error error: Collection([Diagnostic(Diagnostic { kind: Error, message: "Invalid function 'pg_catalog.pg_get_function_result'", span: Some(Span(Location(1,188)..Location(1,198))), notes: [DiagnosticNote { message: "Possible function 'pg_catalog.pg_get_function_arguments'", span: None }], helps: [] }, Plan("Invalid function 'pg_catalog.pg_get_function_result'.\nDid you mean 'pg_catalog.pg_get_function_arguments'?")), Diagnostic(Diagnostic { kind: Error, message: "Invalid function 'pg_catalog.pg_get_function_sqlbody'", span: Some(Span(Location(1,242)..Location(1,252))), notes: [DiagnosticNote { message: "Possible function 'pg_catalog.pg_get_function_arguments'", span: None }], helps: [] }, Plan("Invalid f
