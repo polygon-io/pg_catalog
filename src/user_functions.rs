@@ -1489,6 +1489,86 @@ pub fn register_pg_available_extension_versions(ctx: &SessionContext) -> Result<
     Ok(())
 }
 
+/// pg_catalog.pg_get_keywords() -> TABLE
+///
+/// Returns PostgreSQL keywords and their categories. For now this
+/// implementation exposes the expected columns but returns an empty
+/// result set so that tools relying on the function can execute
+/// successfully.
+pub fn register_pg_get_keywords(ctx: &SessionContext) -> Result<()> {
+    use arrow::datatypes::{DataType, Field, Schema};
+    use std::sync::Arc;
+
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("word", DataType::Utf8, true),
+        Field::new("catcode", DataType::Utf8, true),
+        Field::new("catdesc", DataType::Utf8, true),
+    ]));
+
+    #[derive(Debug)]
+    struct TableFn {
+        schema: SchemaRef,
+    }
+
+    #[async_trait]
+    impl TableProvider for TableFn {
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+
+        fn schema(&self) -> SchemaRef {
+            self.schema.clone()
+        }
+
+        fn table_type(&self) -> TableType {
+            TableType::Base
+        }
+
+        async fn scan(
+            &self,
+            _session: &dyn Session,
+            projection: Option<&Vec<usize>>,
+            _filters: &[Expr],
+            _limit: Option<usize>,
+        ) -> Result<Arc<dyn datafusion::physical_plan::ExecutionPlan>> {
+            let batch = RecordBatch::new_empty(self.schema.clone());
+            Ok(MemorySourceConfig::try_new_exec(
+                &[vec![batch]],
+                self.schema.clone(),
+                projection.cloned(),
+            )?)
+        }
+    }
+
+    #[derive(Debug)]
+    struct Func {
+        schema: SchemaRef,
+    }
+
+    impl TableFunctionImpl for Func {
+        fn call(&self, exprs: &[Expr]) -> Result<Arc<dyn TableProvider>> {
+            if !exprs.is_empty() {
+                return plan_err!("pg_get_keywords takes no arguments");
+            }
+            Ok(Arc::new(TableFn {
+                schema: self.schema.clone(),
+            }))
+        }
+    }
+
+    ctx.register_udtf(
+        "pg_get_keywords",
+        Arc::new(Func {
+            schema: schema.clone(),
+        }),
+    );
+    ctx.register_udtf(
+        "pg_catalog.pg_get_keywords",
+        Arc::new(Func { schema }),
+    );
+    Ok(())
+}
+
 
 
 #[cfg(test)]
@@ -1817,6 +1897,19 @@ mod tests {
         register_pg_available_extension_versions(&ctx)?;
         let batches = ctx
             .sql("SELECT * FROM pg_available_extension_versions()")
+            .await?
+            .collect()
+            .await?;
+        assert_eq!(batches[0].num_rows(), 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn pg_get_keywords_empty() -> Result<()> {
+        let ctx = SessionContext::new();
+        register_pg_get_keywords(&ctx)?;
+        let batches = ctx
+            .sql("SELECT * FROM pg_get_keywords()")
             .await?
             .collect()
             .await?;
