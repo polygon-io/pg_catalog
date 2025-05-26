@@ -1339,6 +1339,68 @@ pub fn register_pg_get_indexdef(ctx: &SessionContext) -> Result<()> {
     Ok(())
 }
 
+/// pg_catalog.pg_get_function_result(oid) → text
+pub fn register_pg_get_function_result(ctx: &SessionContext) -> Result<()> {
+    use arrow::array::{ArrayRef, StringBuilder};
+    use arrow::datatypes::DataType;
+    use datafusion::logical_expr::{create_udf, ColumnarValue, Volatility};
+    use std::sync::Arc;
+
+    let fun = |args: &[ColumnarValue]| -> Result<ColumnarValue> {
+        let len = match args.first() {
+            Some(ColumnarValue::Array(a)) => a.len(),
+            _ => 1,
+        };
+        let mut b = StringBuilder::with_capacity(len, len);
+        for _ in 0..len {
+            b.append_null();
+        }
+        Ok(ColumnarValue::Array(Arc::new(b.finish()) as ArrayRef))
+    };
+
+    let udf = create_udf(
+        "pg_catalog.pg_get_function_result",
+        vec![DataType::Int64],
+        DataType::Utf8,
+        Volatility::Stable,
+        Arc::new(fun),
+    )
+    .with_aliases(["pg_get_function_result"]);
+    ctx.register_udf(udf);
+    Ok(())
+}
+
+/// pg_catalog.pg_get_function_sqlbody(oid) → text
+pub fn register_pg_get_function_sqlbody(ctx: &SessionContext) -> Result<()> {
+    use arrow::array::{ArrayRef, StringBuilder};
+    use arrow::datatypes::DataType;
+    use datafusion::logical_expr::{create_udf, ColumnarValue, Volatility};
+    use std::sync::Arc;
+
+    let fun = |args: &[ColumnarValue]| -> Result<ColumnarValue> {
+        let len = match args.first() {
+            Some(ColumnarValue::Array(a)) => a.len(),
+            _ => 1,
+        };
+        let mut b = StringBuilder::with_capacity(len, len);
+        for _ in 0..len {
+            b.append_null();
+        }
+        Ok(ColumnarValue::Array(Arc::new(b.finish()) as ArrayRef))
+    };
+
+    let udf = create_udf(
+        "pg_catalog.pg_get_function_sqlbody",
+        vec![DataType::Int64],
+        DataType::Utf8,
+        Volatility::Stable,
+        Arc::new(fun),
+    )
+    .with_aliases(["pg_get_function_sqlbody"]);
+    ctx.register_udf(udf);
+    Ok(())
+}
+
 
 
 #[cfg(test)]
