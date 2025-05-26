@@ -45,6 +45,7 @@ use crate::user_functions::{
     register_pg_get_one,
     register_pg_get_statisticsobjdef_columns,
     register_pg_get_viewdef,
+    register_pg_available_extension_versions,
     register_pg_postmaster_start_time,
     register_pg_relation_is_publishable,
     register_quote_ident,
@@ -851,6 +852,7 @@ pub async fn start_server(base_ctx: Arc<SessionContext>, addr: &str,
             register_scalar_txid_current(&ctx)?;
             register_quote_ident(&ctx)?;
             register_translate(&ctx)?;
+            register_pg_available_extension_versions(&ctx)?;
             register_pg_get_viewdef(&ctx)?;
             register_pg_get_function_arguments(&ctx)?;
             register_pg_get_function_result(&ctx)?;

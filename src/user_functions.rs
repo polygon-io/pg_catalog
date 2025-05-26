@@ -1401,6 +1401,94 @@ pub fn register_pg_get_function_sqlbody(ctx: &SessionContext) -> Result<()> {
     Ok(())
 }
 
+/// pg_catalog.pg_available_extension_versions() -> TABLE
+///
+/// Returns information about available extension versions. For now this
+/// implementation returns an empty result set but exposes the expected
+/// columns so queries referencing the function succeed.
+pub fn register_pg_available_extension_versions(ctx: &SessionContext) -> Result<()> {
+    use arrow::datatypes::{DataType, Field, Schema};
+    use std::sync::Arc;
+
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("name", DataType::Utf8, true),
+        Field::new("version", DataType::Utf8, true),
+        Field::new("superuser", DataType::Boolean, true),
+        Field::new("trusted", DataType::Boolean, true),
+        Field::new("relocatable", DataType::Boolean, true),
+        Field::new("schema", DataType::Utf8, true),
+        Field::new(
+            "requires",
+            DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
+            true,
+        ),
+        Field::new("comment", DataType::Utf8, true),
+    ]));
+
+    #[derive(Debug)]
+    struct TableFn {
+        schema: SchemaRef,
+    }
+
+    #[async_trait]
+    impl TableProvider for TableFn {
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+
+        fn schema(&self) -> SchemaRef {
+            self.schema.clone()
+        }
+
+        fn table_type(&self) -> TableType {
+            TableType::Base
+        }
+
+        async fn scan(
+            &self,
+            _session: &dyn Session,
+            projection: Option<&Vec<usize>>,
+            _filters: &[Expr],
+            _limit: Option<usize>,
+        ) -> Result<Arc<dyn datafusion::physical_plan::ExecutionPlan>> {
+            let batch = RecordBatch::new_empty(self.schema.clone());
+            Ok(MemorySourceConfig::try_new_exec(
+                &[vec![batch]],
+                self.schema.clone(),
+                projection.cloned(),
+            )?)
+        }
+    }
+
+    #[derive(Debug)]
+    struct Func {
+        schema: SchemaRef,
+    }
+
+    impl TableFunctionImpl for Func {
+        fn call(&self, exprs: &[Expr]) -> Result<Arc<dyn TableProvider>> {
+            if !exprs.is_empty() {
+                return plan_err!("pg_available_extension_versions takes no arguments");
+            }
+            Ok(Arc::new(TableFn {
+                schema: self.schema.clone(),
+            }))
+        }
+    }
+
+    ctx.register_udtf(
+        "pg_available_extension_versions",
+        Arc::new(Func {
+            schema: schema.clone(),
+        }),
+    );
+    ctx.register_udtf(
+        "pg_catalog.pg_available_extension_versions",
+        Arc::new(Func { schema }),
+    );
+    Ok(())
+}
+
 
 
 #[cfg(test)]
@@ -1720,6 +1808,19 @@ mod tests {
                          .unwrap().value(0);
     
         assert!(v2 == v1 + 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn available_extension_versions_empty() -> Result<()> {
+        let ctx = SessionContext::new();
+        register_pg_available_extension_versions(&ctx)?;
+        let batches = ctx
+            .sql("SELECT * FROM pg_available_extension_versions()")
+            .await?
+            .collect()
+            .await?;
+        assert_eq!(batches[0].num_rows(), 0);
         Ok(())
     }
 
