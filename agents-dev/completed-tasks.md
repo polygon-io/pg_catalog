@@ -115,3 +115,12 @@ exec_error error: Plan("table function 'pg_available_extension_versions' not fou
 Added a stub implementation for the `pg_available_extension_versions()`
 table function and registered it during server startup so IntelliJ queries can
 resolve successfully.
+
+# Task 22:
+exec_error query: "with schema_procs as (select prorettype, proargtypes, proallargtypes\n                      from pg_catalog.pg_proc\n                      where pronamespace = $1::oid\n                        /* and pg_catalog.age(xmin) <= #TXAGE */ ), ..."
+exec_error params: Some([Some(b"\0\0\0\0\0\0\x08\x98"), Some(b"\0\0\0\0\0\0\x08\x98"), Some(b"\0\0\0\0\0\0\x08\x98")])
+exec_error error: Collection([Diagnostic(Diagnostic { kind: Error, message: "column 'prorettype' not found" ... )])
+## # Task 22: Done
+Recursive aliasing renamed columns inside CTEs, causing subquery references to fail.
+`alias_all_columns` now only aliases the outer query so CTE columns keep their names.
+Unit tests updated accordingly and all tests pass.
