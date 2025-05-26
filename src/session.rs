@@ -29,6 +29,7 @@ use crate::replace::{
     rewrite_brace_array_literal,
     rewrite_pg_custom_operator,
     rewrite_regtype_cast, rewrite_oid_cast, rewrite_char_cast,
+    rewrite_xid_cast,
     rewrite_regoper_cast, rewrite_regoperator_cast, rewrite_regprocedure_cast, rewrite_regproc_cast,
     rewrite_available_updates,
     rewrite_schema_qualified_custom_types,
@@ -50,6 +51,7 @@ use crate::replace_any_group_by::rewrite_group_by_for_any;
 pub struct ClientOpts {
     pub application_name: String,
     pub datestyle: String,
+    pub search_path: String,
 }
 
 impl Default for ClientOpts {
@@ -57,6 +59,7 @@ impl Default for ClientOpts {
         Self {
             application_name: String::new(),
             datestyle: "ISO, MDY".to_string(),
+            search_path: "\"$user\", public".to_string(),
         }
     }
 }
@@ -84,6 +87,10 @@ impl ExtensionOptions for ClientOpts {
                 self.datestyle = value.to_string();
                 Ok(())
             }
+            "search_path" => {
+                self.search_path = value.to_string();
+                Ok(())
+            }
             "extra_float_digits" => {
                 Ok(())
             }
@@ -101,6 +108,11 @@ impl ExtensionOptions for ClientOpts {
             ConfigEntry {
                 key: "datestyle".to_string(),
                 value: Some(self.datestyle.clone()),
+                description: "",
+            },
+            ConfigEntry {
+                key: "search_path".to_string(),
+                value: Some(self.search_path.clone()),
                 description: "",
             },
         ]
@@ -222,6 +234,7 @@ pub fn rewrite_filters(sql: &str) -> datafusion::error::Result<(String, HashMap<
     let sql = rewrite_char_cast(&sql)?;
     let sql = replace_regclass(&sql)?;
     let sql = rewrite_regtype_cast(&sql)?;
+    let sql = rewrite_xid_cast(&sql)?;
     let sql = rewrite_oid_cast(&sql)?;
     let (sql, aliases) = alias_all_columns(&sql)?;
     let sql = rewrite_subquery_as_cte(&sql);
