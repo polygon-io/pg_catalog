@@ -14,6 +14,10 @@ exec_error query: "select P.oid as aggregate_id,\n       P.xmin as state_number,
 exec_error params: Some([Some(b"\0\0\0\0\0\0\x08\x98")])
 exec_error error: Collection([NotImplemented("Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: \"regproc\", quote_style: None, span: Span(Location(1,279)..Location(1,286)) })]), [])"), NotImplemented("Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: \"regproc\", quote_style: None, span: Span(Location(1,458)..Location(1,465)) })]), [])"), NotImplemented("Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: \"regproc\", quote_style: None, span: Span(Location(1,953)..Location(1,960)) })]), [])"), NotImplemented("Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: \"regproc\", quote_style: None, span: Span(Location(1,1118)..Location(1,1125)) })]), [])"), NotImplemented("Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: \"regproc\", quote_style: None, span: Span(Location(1,1351)..Location(1,1358)) })]), [])"), NotImplemented("Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: \"regproc\", quote_style: None, span: Span(Location(1,1646)..Location(1,1653)) })]), [])"), NotImplemented("Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: \"regproc\", quote_style: None, span: Span(Location(1,1805)..Location(1,1812)) })]), [])"), NotImplemented("Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: \"regproc\", quote_style: None, span: Span(Location(1,1978)..Location(1,1985)) })]), [])")])
 
+## # Task 23: Done
+Implemented `rewrite_regproc_cast` which maps `regproc` casts to `TEXT`.
+The rewrite is part of the filter pipeline and unit tests ensure it works.
+
 ## Task 21: Done
 array_agg subqueries failed because the rewriter didn't treat array_agg as an aggregate.
 Added detection for array_agg and a regression test.
