@@ -55,3 +55,9 @@ The failure was due to casts using the special type `"char"` which the
 parser returned as a custom type.  Added a rewrite step to map such casts
 to the regular `CHAR` type and updated the pipeline and tests.
 
+# Task 9: Done
+The parser rejected `pg_get_function_result` and `pg_get_function_sqlbody`
+functions. Implemented placeholder UDFs returning NULL for both and
+registered them with the server. Added functional tests verifying the
+new functions return `NULL`.
+
