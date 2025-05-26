@@ -124,3 +124,8 @@ exec_error error: Collection([Diagnostic(Diagnostic { kind: Error, message: "col
 Recursive aliasing renamed columns inside CTEs, causing subquery references to fail.
 `alias_all_columns` now only aliases the outer query so CTE columns keep their names.
 Unit tests updated accordingly and all tests pass.
+
+# Task 21: Done
+Fixed GROUP BY error when rewriting subqueries using `array_agg`.
+`array_agg` is now treated as an aggregate function so the join key is grouped.
+Added unit test `injects_group_by_for_array_agg` verifying the rewrite.

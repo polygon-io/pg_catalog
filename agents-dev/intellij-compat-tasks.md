@@ -17,3 +17,7 @@ exec_error error: Collection([NotImplemented("Unsupported SQL type Custom(Object
 ## # Task 23: Done
 Implemented `rewrite_regproc_cast` which maps `regproc` casts to `TEXT`.
 The rewrite is part of the filter pipeline and unit tests ensure it works.
+
+## Task 21: Done
+array_agg subqueries failed because the rewriter didn't treat array_agg as an aggregate.
+Added detection for array_agg and a regression test.
