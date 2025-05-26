@@ -1569,6 +1569,50 @@ pub fn register_pg_get_keywords(ctx: &SessionContext) -> Result<()> {
     Ok(())
 }
 
+pub fn register_pg_relation_size(ctx: &SessionContext) -> Result<()> {
+    use arrow::datatypes::DataType;
+    use datafusion::common::ScalarValue;
+    use datafusion::logical_expr::{create_udf, ColumnarValue, Volatility};
+    use std::sync::Arc;
+
+    let fun = |_args: &[ColumnarValue]| -> Result<ColumnarValue> {
+        Ok(ColumnarValue::Scalar(ScalarValue::Int64(Some(0))))
+    };
+
+    let udf = create_udf(
+        "pg_catalog.pg_relation_size",
+        vec![DataType::Int64],
+        DataType::Int64,
+        Volatility::Stable,
+        Arc::new(fun),
+    )
+    .with_aliases(["pg_relation_size"]);
+    ctx.register_udf(udf);
+    Ok(())
+}
+
+pub fn register_pg_total_relation_size(ctx: &SessionContext) -> Result<()> {
+    use arrow::datatypes::DataType;
+    use datafusion::common::ScalarValue;
+    use datafusion::logical_expr::{create_udf, ColumnarValue, Volatility};
+    use std::sync::Arc;
+
+    let fun = |_args: &[ColumnarValue]| -> Result<ColumnarValue> {
+        Ok(ColumnarValue::Scalar(ScalarValue::Int64(Some(0))))
+    };
+
+    let udf = create_udf(
+        "pg_catalog.pg_total_relation_size",
+        vec![DataType::Int64],
+        DataType::Int64,
+        Volatility::Stable,
+        Arc::new(fun),
+    )
+    .with_aliases(["pg_total_relation_size"]);
+    ctx.register_udf(udf);
+    Ok(())
+}
+
 
 
 #[cfg(test)]
@@ -1914,6 +1958,44 @@ mod tests {
             .collect()
             .await?;
         assert_eq!(batches[0].num_rows(), 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn relation_size_returns_zero() -> Result<()> {
+        use arrow::array::Int64Array;
+        let ctx = SessionContext::new();
+        register_pg_relation_size(&ctx)?;
+        let batches = ctx
+            .sql("SELECT pg_catalog.pg_relation_size(1)")
+            .await?
+            .collect()
+            .await?;
+        let arr = batches[0]
+            .column(0)
+            .as_any()
+            .downcast_ref::<Int64Array>()
+            .unwrap();
+        assert_eq!(arr.value(0), 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn total_relation_size_returns_zero() -> Result<()> {
+        use arrow::array::Int64Array;
+        let ctx = SessionContext::new();
+        register_pg_total_relation_size(&ctx)?;
+        let batches = ctx
+            .sql("SELECT pg_catalog.pg_total_relation_size(1)")
+            .await?
+            .collect()
+            .await?;
+        let arr = batches[0]
+            .column(0)
+            .as_any()
+            .downcast_ref::<Int64Array>()
+            .unwrap();
+        assert_eq!(arr.value(0), 0);
         Ok(())
     }
 
