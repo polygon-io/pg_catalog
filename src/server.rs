@@ -49,6 +49,8 @@ use crate::user_functions::{
     register_pg_available_extension_versions,
     register_pg_postmaster_start_time,
     register_pg_relation_is_publishable,
+    register_pg_relation_size,
+    register_pg_total_relation_size,
     register_quote_ident,
     register_scalar_array_to_string,
     register_scalar_format_type,
@@ -848,6 +850,8 @@ pub async fn start_server(base_ctx: Arc<SessionContext>, addr: &str,
             register_pg_get_statisticsobjdef_columns(&ctx)?;
             register_pg_relation_is_publishable(&ctx)?;
             register_pg_postmaster_start_time(&ctx)?;
+            register_pg_relation_size(&ctx)?;
+            register_pg_total_relation_size(&ctx)?;
             register_scalar_pg_age(&ctx)?;
             register_scalar_pg_is_in_recovery(&ctx)?;
             register_scalar_txid_current(&ctx)?;
