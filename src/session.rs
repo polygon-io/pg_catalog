@@ -51,6 +51,7 @@ use crate::replace_any_group_by::rewrite_group_by_for_any;
 pub struct ClientOpts {
     pub application_name: String,
     pub datestyle: String,
+    pub search_path: String,
 }
 
 impl Default for ClientOpts {
@@ -58,6 +59,7 @@ impl Default for ClientOpts {
         Self {
             application_name: String::new(),
             datestyle: "ISO, MDY".to_string(),
+            search_path: "\"$user\", public".to_string(),
         }
     }
 }
@@ -85,6 +87,10 @@ impl ExtensionOptions for ClientOpts {
                 self.datestyle = value.to_string();
                 Ok(())
             }
+            "search_path" => {
+                self.search_path = value.to_string();
+                Ok(())
+            }
             "extra_float_digits" => {
                 Ok(())
             }
@@ -102,6 +108,11 @@ impl ExtensionOptions for ClientOpts {
             ConfigEntry {
                 key: "datestyle".to_string(),
                 value: Some(self.datestyle.clone()),
+                description: "",
+            },
+            ConfigEntry {
+                key: "search_path".to_string(),
+                value: Some(self.search_path.clone()),
                 description: "",
             },
         ]

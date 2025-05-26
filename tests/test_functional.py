@@ -112,6 +112,14 @@ def test_show_datestyle(server):
         assert row == ("datestyle", "ISO, MDY")
 
 
+def test_show_search_path(server):
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+        cur.execute("SHOW search_path")
+        row = cur.fetchone()
+        assert row == ("search_path", '"$user", public')
+
+
 def test_current_user(server):
     with psycopg.connect(CONN_STR) as conn:
         cur = conn.cursor()
