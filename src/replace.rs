@@ -505,6 +505,94 @@ pub fn rewrite_regoper_cast(sql: &str) -> Result<String> {
         .join("; "))
 }
 
+/// Replace casts to regoperator with TEXT.
+pub fn rewrite_regoperator_cast(sql: &str) -> Result<String> {
+    use sqlparser::ast::{
+        visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName,
+        ObjectNamePart,
+    };
+    use sqlparser::dialect::PostgreSqlDialect;
+    use sqlparser::parser::Parser;
+    use std::ops::ControlFlow;
+
+    fn is_regoperator(obj: &ObjectName) -> bool {
+        match obj.0.as_slice() {
+            [ObjectNamePart::Identifier(id)] if id.value.eq_ignore_ascii_case("regoperator") => true,
+            [ObjectNamePart::Identifier(schema), ObjectNamePart::Identifier(id)]
+                if schema.value.eq_ignore_ascii_case("pg_catalog") && id.value.eq_ignore_ascii_case("regoperator") => true,
+            _ => false,
+        }
+    }
+
+    let dialect = PostgreSqlDialect {};
+    let mut stmts = Parser::parse_sql(&dialect, sql)
+        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+    visit_statements_mut(&mut stmts, |stmt| {
+        visit_expressions_mut(stmt, |e| {
+            if let Expr::Cast { data_type, .. } = e {
+                if let DataType::Custom(obj, _) = data_type {
+                    if is_regoperator(obj) {
+                        *data_type = DataType::Text;
+                    }
+                }
+            }
+            ControlFlow::<()>::Continue(())
+        })?;
+        ControlFlow::Continue(())
+    });
+
+    Ok(stmts
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<_>>()
+        .join("; "))
+}
+
+/// Replace casts to regprocedure with TEXT.
+pub fn rewrite_regprocedure_cast(sql: &str) -> Result<String> {
+    use sqlparser::ast::{
+        visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName,
+        ObjectNamePart,
+    };
+    use sqlparser::dialect::PostgreSqlDialect;
+    use sqlparser::parser::Parser;
+    use std::ops::ControlFlow;
+
+    fn is_regprocedure(obj: &ObjectName) -> bool {
+        match obj.0.as_slice() {
+            [ObjectNamePart::Identifier(id)] if id.value.eq_ignore_ascii_case("regprocedure") => true,
+            [ObjectNamePart::Identifier(schema), ObjectNamePart::Identifier(id)]
+                if schema.value.eq_ignore_ascii_case("pg_catalog") && id.value.eq_ignore_ascii_case("regprocedure") => true,
+            _ => false,
+        }
+    }
+
+    let dialect = PostgreSqlDialect {};
+    let mut stmts = Parser::parse_sql(&dialect, sql)
+        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+    visit_statements_mut(&mut stmts, |stmt| {
+        visit_expressions_mut(stmt, |e| {
+            if let Expr::Cast { data_type, .. } = e {
+                if let DataType::Custom(obj, _) = data_type {
+                    if is_regprocedure(obj) {
+                        *data_type = DataType::Text;
+                    }
+                }
+            }
+            ControlFlow::<()>::Continue(())
+        })?;
+        ControlFlow::Continue(())
+    });
+
+    Ok(stmts
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<_>>()
+        .join("; "))
+}
+
 /// Replace the available_updates sub-query in pg_extension queries with NULL.
 /// IntelliJ issues a correlated ARRAY sub-query over `available_versions`
 /// which our planner cannot resolve. Returning NULL keeps the column shape
@@ -1154,6 +1242,34 @@ mod tests {
         let input = "SELECT array(select unnest from unnest(available_versions) where unnest > extversion)";
         let expected = "SELECT NULL";
         assert_eq!(rewrite_available_updates(input).unwrap(), expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_rewrite_regoperator_cast() -> Result<(), Box<dyn std::error::Error>> {
+        let cases = vec![
+            ("SELECT x::regoperator", "SELECT x::TEXT"),
+            ("SELECT x::pg_catalog.regoperator::varchar", "SELECT x::TEXT::VARCHAR"),
+        ];
+
+        for (input, expected) in cases {
+            assert_eq!(rewrite_regoperator_cast(input).unwrap(), expected);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_rewrite_regprocedure_cast() -> Result<(), Box<dyn std::error::Error>> {
+        let cases = vec![
+            ("SELECT x::regprocedure", "SELECT x::TEXT"),
+            ("SELECT x::pg_catalog.regprocedure::varchar", "SELECT x::TEXT::VARCHAR"),
+        ];
+
+        for (input, expected) in cases {
+            assert_eq!(rewrite_regprocedure_cast(input).unwrap(), expected);
+        }
+
         Ok(())
     }
 

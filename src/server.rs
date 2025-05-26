@@ -39,6 +39,8 @@ use crate::user_functions::{
     register_current_schema,
     register_pg_get_array,
     register_pg_get_function_arguments,
+    register_pg_get_function_result,
+    register_pg_get_function_sqlbody,
     register_pg_get_indexdef,
     register_pg_get_one,
     register_pg_get_statisticsobjdef_columns,
@@ -853,6 +855,8 @@ pub async fn start_server(base_ctx: Arc<SessionContext>, addr: &str,
             register_pg_available_extension_versions(&ctx)?;
             register_pg_get_viewdef(&ctx)?;
             register_pg_get_function_arguments(&ctx)?;
+            register_pg_get_function_result(&ctx)?;
+            register_pg_get_function_sqlbody(&ctx)?;
             register_pg_get_indexdef(&ctx)?;
 
             
