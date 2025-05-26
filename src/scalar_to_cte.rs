@@ -473,7 +473,7 @@ mod rewriter {
                         .unwrap_or_default();
                 
                     // is this an aggregate we need to regard specially?
-                    let is_aggr = ["count", "sum", "avg", "min", "max", "pg_get_array", "array"]
+                    let is_aggr = ["count", "sum", "avg", "min", "max", "pg_get_array", "array_agg", "array"]
                         .contains(&base_name.as_str());
                 
                     if is_aggr {
@@ -783,6 +783,9 @@ mod rewriter {
 
 
                     for p in need { ensure_proj(&p); }
+
+                    // ensure aggregates with join columns are grouped
+                    self.inject_group_by(inner_sel);
 
             }
         
@@ -1487,6 +1490,29 @@ mod tests {
         // sanity: the scalar sub-query must still have been lifted to a CTE
         assert!(rewritten.starts_with("with __cte1"), "CTE missing");
 
+        Ok(())
+    }
+
+    #[test]
+    fn injects_group_by_for_array_agg() -> Result<()> {
+        // plain column with array_agg aggregate should trigger GROUP BY
+        let sql = r#"
+            SELECT pol.polname,
+                (
+                    SELECT pg_catalog.array_agg(rolname)
+                    FROM pg_catalog.pg_roles
+                    WHERE rolname = pol.polname
+                ) AS roles
+            FROM pg_catalog.pg_policy AS pol"#;
+
+        let out = rewrite(sql)?;
+        let rewritten = out.sql.to_lowercase();
+        println!("injects_group_by_for_array_agg: {:?}", rewritten);
+        assert!(
+            rewritten.contains("group by rolname"),
+            "GROUP BY clause was not injected:\n{rewritten}"
+        );
+        assert!(rewritten.starts_with("with __cte1"), "CTE missing");
         Ok(())
     }
 

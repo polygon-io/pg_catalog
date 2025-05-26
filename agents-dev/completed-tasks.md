@@ -115,3 +115,8 @@ exec_error error: Plan("table function 'pg_available_extension_versions' not fou
 Added a stub implementation for the `pg_available_extension_versions()`
 table function and registered it during server startup so IntelliJ queries can
 resolve successfully.
+
+# Task 21: Done
+Fixed GROUP BY error when rewriting subqueries using `array_agg`.
+`array_agg` is now treated as an aggregate function so the join key is grouped.
+Added unit test `injects_group_by_for_array_agg` verifying the rewrite.
