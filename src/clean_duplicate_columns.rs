@@ -99,14 +99,21 @@ fn alias_projection(select: &mut Select, counter: &mut usize, alias_map: &mut Ha
     select.projection = new_proj;
 }
 
-fn walk_set_expr(expr: &mut SetExpr,  counter: &mut usize, alias_map: &mut HashMap<String, String>) {
+fn walk_set_expr(
+    expr: &mut SetExpr,
+    counter: &mut usize,
+    alias_map: &mut HashMap<String, String>,
+    depth: usize,
+) {
     match expr {
         SetExpr::Select(select) => {
-            alias_projection(select, counter, alias_map );
+            if depth == 0 {
+                alias_projection(select, counter, alias_map);
+            }
             for table_with_joins in &mut select.from {
                 match &mut table_with_joins.relation {
                     TableFactor::Derived { subquery, .. } => {
-                        walk_query(subquery, counter, alias_map);
+                        walk_query(subquery, counter, alias_map, depth + 1);
                     }
                     _ => {}
                 }
@@ -114,22 +121,27 @@ fn walk_set_expr(expr: &mut SetExpr,  counter: &mut usize, alias_map: &mut HashM
         }
 
         SetExpr::SetOperation { left, right, .. } => {
-            walk_set_expr(left, counter, alias_map);
-            walk_set_expr(right, counter, alias_map);
+            walk_set_expr(left, counter, alias_map, depth);
+            walk_set_expr(right, counter, alias_map, depth);
         }
         SetExpr::Query(subquery) => {
-            walk_query(subquery, counter, alias_map);
+            walk_query(subquery, counter, alias_map, depth + 1);
         }
         _ => {}
     }
 }
 
-fn walk_query(query: &mut Query, counter: &mut usize, alias_map: &mut HashMap<String, String>) {
-    walk_set_expr(&mut query.body, counter, alias_map);
+fn walk_query(
+    query: &mut Query,
+    counter: &mut usize,
+    alias_map: &mut HashMap<String, String>,
+    depth: usize,
+) {
+    walk_set_expr(&mut query.body, counter, alias_map, depth);
 
     if let Some(with) = &mut query.with {
         for cte in &mut with.cte_tables {
-            walk_query(&mut cte.query, counter, alias_map);
+            walk_query(&mut cte.query, counter, alias_map, depth + 1);
         }
     }
 }
@@ -144,7 +156,7 @@ pub fn alias_all_columns(sql: &str) -> Result<(String, HashMap<String, String>)>
 
     let _ = visit_statements_mut(&mut statements, |stmt| {
         if let Statement::Query(query) = stmt {
-            walk_query(query, &mut counter, &mut alias_map);
+            walk_query(query, &mut counter, &mut alias_map, 0);
         }
         ControlFlow::<()>::Continue(())
     });
@@ -219,20 +231,20 @@ mod tests {
 
             (
                 "WITH cte AS (SELECT t.a FROM t) SELECT * FROM cte",
-                vec!["SELECT t.a AS alias_1", "SELECT * FROM cte"], // t.a gets alias, SELECT * stays
-                alias_maps(&["a"]),
+                vec!["SELECT t.a FROM t", "SELECT * FROM cte"],
+                alias_maps(&[]),
             ),
 
             (
                 "select * from (SELECT t.a FROM t)",
-                vec!["SELECT t.a AS"],
-                alias_maps(&["a"]),
+                vec!["SELECT t.a FROM t"],
+                alias_maps(&[]),
             ),
 
             (
                 "select * from (SELECT t.a, t.b FROM t) T1",
-                vec!["SELECT t.a AS alias_1", "t.b AS alias_2"],
-                alias_maps(&["a", "b"]),
+                vec!["SELECT t.a, t.b FROM t"],
+                alias_maps(&[]),
             ),
 
             (
