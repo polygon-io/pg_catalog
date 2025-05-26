@@ -46,6 +46,10 @@ where T.typnamespace = $1::oid
 order by 1"
 exec_error params: Some([Some(b"\0\0\0\0\0\0\x08\x98")])
 exec_error error: NotImplemented("Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: \"char\", quote_style: Some('\"'), span: Span(Location(1,632)..Location(1,638)) })]), [])")
+# Task 2: done
+The failure was due to casts using the special type `"char"` which the
+parser returned as a custom type.  Added a rewrite step to map such casts
+to the regular `CHAR` type and updated the pipeline and tests.
 # Task 3:
 exec_error query: "select T.relkind as table_kind,
        T.relname as table_name,

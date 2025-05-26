@@ -28,7 +28,7 @@ use crate::replace::{
     rewrite_array_subquery,
     rewrite_brace_array_literal,
     rewrite_pg_custom_operator,
-    rewrite_regtype_cast, rewrite_oid_cast,
+    rewrite_regtype_cast, rewrite_oid_cast, rewrite_char_cast,
     rewrite_regoper_cast,
     rewrite_available_updates,
     rewrite_schema_qualified_custom_types,
@@ -216,6 +216,7 @@ pub fn rewrite_filters(sql: &str) -> datafusion::error::Result<(String, HashMap<
     let sql = rewrite_pg_custom_operator(&sql)?;
     let sql = rewrite_schema_qualified_text(&sql)?;
     let sql = rewrite_schema_qualified_custom_types(&sql)?;
+    let sql = rewrite_char_cast(&sql)?;
     let sql = replace_regclass(&sql)?;
     let sql = rewrite_regtype_cast(&sql)?;
     let sql = rewrite_oid_cast(&sql)?;
