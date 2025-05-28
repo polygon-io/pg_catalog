@@ -268,6 +268,15 @@ def test_misc_missing_functions(server):
         row = cur.fetchone()
         assert row == (None,)
 
+def test_encode_bytea_column(server):
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT pg_catalog.encode(T.tgargs, 'escape') "
+            "FROM pg_catalog.pg_trigger T LIMIT 0"
+        )
+        assert cur.fetchall() == []
+
 def test_pg_get_expr_int64(server):
     """pg_get_expr should accept BIGINT arguments produced by ::oid casts."""
     with psycopg.connect(CONN_STR) as conn:
