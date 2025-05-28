@@ -35,6 +35,7 @@ pub fn map_pg_type(pg_type: &str) -> DataType {
         "int" | "integer" | "int4" => DataType::Int32,
         "bigint" | "int8" => DataType::Int64,
         "bool" | "boolean" => DataType::Boolean,
+        "bytea" => DataType::Binary,
         _ if lower.starts_with("varchar") => DataType::Utf8,
         _ => DataType::Utf8,
     }

@@ -129,6 +129,8 @@ struct TableDef {
     #[serde(rename = "type", default)]
     table_type: Option<String>,
     schema: BTreeMap<String, String>,
+    #[serde(default)]
+    pg_types: Option<BTreeMap<String, String>>,
     rows: Option<Vec<BTreeMap<String, serde_json::Value>>>,
 }
 
@@ -435,7 +437,16 @@ fn build_table(def: TableDef) -> (SchemaRef, Vec<RecordBatch>) {
     let mut fields: Vec<Field> = def
         .schema
         .iter()
-        .map(|(col, typ)| Field::new(col, map_pg_type(typ), true))
+        .map(|(col, typ)| {
+            let mapped_typ = def
+                .pg_types
+                .as_ref()
+                .and_then(|m| m.get(col))
+                .map(|s| s.as_str())
+                .filter(|t| *t == "bytea")
+                .unwrap_or(typ);
+            Field::new(col, map_pg_type(mapped_typ), true)
+        })
         .collect();
 
     let is_system_catalog = matches!(def.table_type.as_deref(), Some("system_catalog"));
@@ -473,6 +484,16 @@ fn build_table(def: TableDef) -> (SchemaRef, Vec<RecordBatch>) {
                             .map(|v| v.as_bool())
                             .collect::<Vec<_>>()
                     )),
+                    DataType::Binary => {
+                        let mut builder = BinaryBuilder::new();
+                        for v in col_data {
+                            match v.as_str() {
+                                Some(s) => builder.append_value(s.as_bytes()),
+                                None => builder.append_null(),
+                            }
+                        }
+                        Arc::new(builder.finish())
+                    },
                     DataType::List(inner) if inner.data_type() == &DataType::Utf8 => {
                         let mut builder = ListBuilder::new(StringBuilder::new());
                         for v in col_data {
