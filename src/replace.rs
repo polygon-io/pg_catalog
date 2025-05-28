@@ -1095,6 +1095,94 @@ pub fn rewrite_array_subquery(sql: &str) -> Result<String> {
         .join("; "))
 }
 
+/// Convert `unnest(proargtypes)` and `unnest(proallargtypes)` calls
+/// into `unnest(oidvector_to_array(...))` so DataFusion treats the
+/// text-encoded `oidvector` columns as arrays.
+pub fn rewrite_oidvector_unnest(sql: &str) -> Result<String> {
+    use sqlparser::ast::{
+        visit_expressions_mut, visit_statements_mut, Expr, Function,
+        FunctionArg, FunctionArgExpr, FunctionArguments, FunctionArgumentList,
+        Ident, ObjectNamePart,
+    };
+    use sqlparser::dialect::PostgreSqlDialect;
+    use sqlparser::parser::Parser;
+    use std::ops::ControlFlow;
+
+    fn is_target_ident(id: &Ident) -> bool {
+        id.value.eq_ignore_ascii_case("proargtypes")
+            || id.value.eq_ignore_ascii_case("proallargtypes")
+    }
+
+    fn needs_rewrite(expr: &Expr) -> bool {
+        match expr {
+            Expr::Identifier(id) => is_target_ident(id),
+            Expr::CompoundIdentifier(parts) => parts
+                .last()
+                .map(|id| is_target_ident(id))
+                .unwrap_or(false),
+            _ => false,
+        }
+    }
+
+    let dialect = PostgreSqlDialect {};
+    let mut stmts = Parser::parse_sql(&dialect, sql)
+        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+    let mut rewritten = false;
+
+    visit_statements_mut(&mut stmts, |stmt| {
+        visit_expressions_mut(stmt, |e| {
+            if let Expr::Function(Function { name, args, .. }) = e {
+                let base = name
+                    .0
+                    .last()
+                    .and_then(|p| p.as_ident())
+                    .map(|id| id.value.to_lowercase())
+                    .unwrap_or_default();
+
+                if base == "unnest" {
+                    if let FunctionArguments::List(FunctionArgumentList { args, .. }) = args {
+                        if let Some(FunctionArg::Unnamed(FunctionArgExpr::Expr(inner))) = args.get_mut(0) {
+                            if needs_rewrite(inner) {
+                                let wrapped = Expr::Function(Function {
+                                    name: sqlparser::ast::ObjectName(vec![
+                                        ObjectNamePart::Identifier(Ident::new("oidvector_to_array")),
+                                    ]),
+                                    args: FunctionArguments::List(FunctionArgumentList {
+                                        duplicate_treatment: None,
+                                        clauses: vec![],
+                                        args: vec![FunctionArg::Unnamed(FunctionArgExpr::Expr(inner.clone()))],
+                                    }),
+                                    over: None,
+                                    filter: None,
+                                    within_group: vec![],
+                                    null_treatment: None,
+                                    parameters: FunctionArguments::None,
+                                    uses_odbc_syntax: false,
+                                });
+                                *inner = wrapped;
+                                rewritten = true;
+                            }
+                        }
+                    }
+                }
+            }
+            ControlFlow::<()>::Continue(())
+        })?;
+        ControlFlow::Continue(())
+    });
+
+    if rewritten {
+        Ok(stmts
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>()
+            .join("; "))
+    } else {
+        Ok(sql.to_owned())
+    }
+}
+
 
 /// Rewrite a Postgres array literal in curly-brace notation
 /// (`'{1,2,3}'`, `'{"a","b"}'`, …) into an `Expr::Array`, which
@@ -1540,6 +1628,17 @@ mod tests {
         let input = "SELECT array(select unnest from unnest(available_versions) where unnest > extversion)";
         let expected = "SELECT NULL";
         assert_eq!(rewrite_available_updates(input).unwrap(), expected);
+        Ok(())
+    }
+
+    #[test]
+    fn test_rewrite_oidvector_unnest() -> Result<(), Box<dyn std::error::Error>> {
+        let input = "SELECT unnest(proargtypes) FROM t";
+        let expected = "SELECT unnest(oidvector_to_array(proargtypes)) FROM t";
+        assert_eq!(rewrite_oidvector_unnest(input).unwrap(), expected);
+
+        let plain = "SELECT unnest(col) FROM t";
+        assert_eq!(rewrite_oidvector_unnest(plain).unwrap(), plain);
         Ok(())
     }
 
