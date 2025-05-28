@@ -131,3 +131,9 @@ Fixed GROUP BY error when rewriting subqueries using `array_agg`.
 Added unit test `injects_group_by_for_array_agg` verifying the rewrite.
 ## # Task 35: Done
 Fixed correlated subqueries referencing later table aliases. `rewrite_subquery_as_cte` now searches all FROM aliases when lifting scalars so joins attach to the correct table. Added test `correlated_with_second_alias` covering this path.
+
+# Task 44:
+exec_error query: "select R.ev_class as table_id, R.oid as rule_id, ... and R.rulename != '_RETURN'::name order by R.ev_class::bigint, ev_type"
+exec_error error: NotImplemented("Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: \"name\" ... }))]))")
+## # Task 44: Done
+`::name` casts were unsupported by the parser. Added `rewrite_name_cast` to convert them to TEXT and invoked it during query rewriting. New tests confirm the cast succeeds.

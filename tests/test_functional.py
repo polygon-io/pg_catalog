@@ -204,6 +204,15 @@ def test_oid_parameter(server):
         assert row == ("pg_catalog",)
 
 
+def test_name_cast_literal(server):
+    """Casting literals to the NAME type should return text."""
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT '_RETURN'::name")
+        row = cur.fetchone()
+        assert row == ("_RETURN",)
+
+
 def test_quote_ident_and_translate(server):
     with psycopg.connect(CONN_STR) as conn:
         cur = conn.cursor()
