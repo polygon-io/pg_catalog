@@ -204,6 +204,15 @@ def test_oid_parameter(server):
         assert row == ("pg_catalog",)
 
 
+def test_name_cast_literal(server):
+    """Casting literals to the NAME type should return text."""
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT '_RETURN'::name")
+        row = cur.fetchone()
+        assert row == ("_RETURN",)
+
+
 def test_quote_ident_and_translate(server):
     with psycopg.connect(CONN_STR) as conn:
         cur = conn.cursor()
@@ -236,6 +245,26 @@ def test_getdef_functions(server):
         assert row == (None,)
 
         cur.execute("SELECT pg_catalog.pg_get_function_sqlbody(1)")
+        row = cur.fetchone()
+        assert row == (None,)
+
+def test_misc_missing_functions(server):
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+
+        cur.execute("SELECT pg_catalog.encode(NULL::bytea, 'escape')")
+        row = cur.fetchone()
+        assert row == (None,)
+
+        cur.execute("SELECT pg_catalog.pg_get_triggerdef(1)")
+        row = cur.fetchone()
+        assert row == (None,)
+
+        cur.execute("SELECT pg_catalog.upper('abc')")
+        row = cur.fetchone()
+        assert row == ('ABC',)
+
+        cur.execute("SELECT pg_catalog.pg_get_ruledef(1)")
         row = cur.fetchone()
         assert row == (None,)
 
@@ -288,6 +317,19 @@ def test_pg_get_keywords_schema(server):
         cur = conn.cursor()
         cur.execute("SELECT * FROM pg_catalog.pg_get_keywords()")
         assert cur.fetchall() == []
+
+
+def test_tuple_equality_join(server):
+    """Queries using tuple equality should execute successfully."""
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT attrelid FROM pg_catalog.pg_attribute A \n"
+            "LEFT JOIN pg_catalog.pg_attrdef D ON (A.attrelid, A.attnum) = (D.adrelid, D.adnum) \n"
+            "LIMIT 1"
+        )
+        # no error and result schema present
+        cur.fetchall()
 
 
 
