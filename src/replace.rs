@@ -386,6 +386,70 @@ pub fn rewrite_char_cast(sql: &str) -> Result<String> {
         .join("; "))
 }
 
+pub fn rewrite_schema_qualified_udtfs(sql: &str) -> Result<String> {
+    use sqlparser::ast::{
+        visit_expressions_mut, visit_relations_mut, visit_statements_mut, Expr,
+        Function, ObjectName, ObjectNamePart,
+    };
+    use sqlparser::dialect::PostgreSqlDialect;
+    use sqlparser::parser::Parser;
+    use std::ops::ControlFlow;
+
+    fn strip_name(name: &mut ObjectName) -> bool {
+        match name.0.as_slice() {
+            [ObjectNamePart::Identifier(schema), ObjectNamePart::Identifier(func)]
+                if schema.value.eq_ignore_ascii_case("pg_catalog")
+                    && [
+                        "pg_get_keywords",
+                        "pg_available_extension_versions",
+                        "pg_postmaster_start_time",
+                    ]
+                    .iter()
+                    .any(|f| func.value.eq_ignore_ascii_case(f)) =>
+            {
+                let ident = name.0.pop().unwrap();
+                name.0.clear();
+                name.0.push(ident);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    let dialect = PostgreSqlDialect {};
+    let mut stmts = Parser::parse_sql(&dialect, sql)
+        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut rewritten = false;
+
+    visit_statements_mut(&mut stmts, |stmt| {
+        visit_expressions_mut(stmt, |e| {
+            if let Expr::Function(Function { name, .. }) = e {
+                if strip_name(name) {
+                    rewritten = true;
+                }
+            }
+            ControlFlow::<()>::Continue(())
+        })?;
+        visit_relations_mut(stmt, |obj| {
+            if strip_name(obj) {
+                rewritten = true;
+            }
+            ControlFlow::<()>::Continue(())
+        })?;
+        ControlFlow::Continue(())
+    });
+
+    if rewritten {
+        Ok(stmts
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>()
+            .join("; "))
+    } else {
+        Ok(sql.to_owned())
+    }
+}
+
 pub fn rewrite_xid_cast(sql: &str) -> Result<String> {
     use sqlparser::ast::{
         visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName,
@@ -1386,6 +1450,17 @@ mod tests {
             assert_eq!(rewrite_regproc_cast(input).unwrap(), expected);
         }
 
+        Ok(())
+    }
+
+    #[test]
+    fn test_rewrite_schema_qualified_udtfs() -> Result<(), Box<dyn std::error::Error>> {
+        let input = "SELECT * FROM pg_catalog.pg_get_keywords()";
+        let expected = "SELECT * FROM pg_get_keywords()";
+        assert_eq!(rewrite_schema_qualified_udtfs(input).unwrap(), expected);
+
+        let plain = "SELECT 1";
+        assert_eq!(rewrite_schema_qualified_udtfs(plain).unwrap(), plain);
         Ok(())
     }
 
