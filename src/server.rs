@@ -484,6 +484,8 @@ impl SimpleQueryHandler for DatafusionBackend {
             return Ok(vec![Response::Execution(Tag::new("COMMIT"))]);
         } else if lowercase.starts_with("rollback") {
             return Ok(vec![Response::Execution(Tag::new("ROLLBACK"))]);
+        } else if lowercase == "discard all" {
+            return Ok(vec![Response::Execution(Tag::new("DISCARD ALL"))]);
         } else if lowercase == "show transaction isolation level" {
             let field_infos = Arc::new(vec![FieldInfo::new(
                 "transaction_isolation".to_string(),
@@ -567,6 +569,8 @@ impl ExtendedQueryHandler for DatafusionBackend {
 
         if sql_trim.is_empty() {
             return Ok(Response::Execution(Tag::new("")));
+        } else if lowercase == "discard all" {
+            return Ok(Response::Execution(Tag::new("DISCARD ALL")));
         } else if lowercase == "show transaction isolation level" {
             let field_infos = Arc::new(vec![FieldInfo::new(
                 "transaction_isolation".to_string(),
@@ -621,6 +625,8 @@ impl ExtendedQueryHandler for DatafusionBackend {
 
         if sql_trim.is_empty() {
             return Ok(DescribeStatementResponse::new(vec![], vec![]));
+        } else if lowercase == "discard all" {
+            return Ok(DescribeStatementResponse::new(vec![], vec![]));
         } else if lowercase == "show transaction isolation level" {
             let fields = vec![FieldInfo::new(
                 "transaction_isolation".to_string(),
@@ -664,6 +670,8 @@ impl ExtendedQueryHandler for DatafusionBackend {
         let lowercase = sql_trim.to_lowercase();
 
         if sql_trim.is_empty() {
+            return Ok(DescribePortalResponse::new(vec![]));
+        } else if lowercase == "discard all" {
             return Ok(DescribePortalResponse::new(vec![]));
         } else if lowercase == "show transaction isolation level" {
             let fields = vec![FieldInfo::new(
