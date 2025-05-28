@@ -248,6 +248,13 @@ def test_pg_get_expr_int64(server):
         assert row == ("hello",)
 
 
+def test_pg_get_keywords_schema(server):
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM pg_catalog.pg_get_keywords()")
+        assert cur.fetchall() == []
+
+
 
 
 

@@ -34,6 +34,7 @@ use crate::replace::{
     rewrite_available_updates,
     rewrite_schema_qualified_custom_types,
     rewrite_schema_qualified_text,
+    rewrite_schema_qualified_udtfs,
     strip_default_collate,
 };
 use crate::scalar_to_cte::rewrite_subquery_as_cte;
@@ -231,6 +232,7 @@ pub fn rewrite_filters(sql: &str) -> datafusion::error::Result<(String, HashMap<
     let sql = rewrite_pg_custom_operator(&sql)?;
     let sql = rewrite_schema_qualified_text(&sql)?;
     let sql = rewrite_schema_qualified_custom_types(&sql)?;
+    let sql = rewrite_schema_qualified_udtfs(&sql)?;
     let sql = rewrite_char_cast(&sql)?;
     let sql = replace_regclass(&sql)?;
     let sql = rewrite_regtype_cast(&sql)?;
