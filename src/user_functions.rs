@@ -1300,6 +1300,34 @@ pub fn register_upper(ctx: &SessionContext) -> Result<()> {
     Ok(())
 }
 
+/// version() -> text
+///
+/// Returns a PostgreSQL-style server version string.
+pub fn register_version_fn(ctx: &SessionContext) -> Result<()> {
+    use arrow::datatypes::DataType;
+    use datafusion::logical_expr::{create_udf, ColumnarValue, Volatility};
+    use datafusion::common::ScalarValue;
+    use std::sync::Arc;
+    use crate::server::SERVER_VERSION;
+
+    let fun = |_args: &[ColumnarValue]| -> Result<ColumnarValue> {
+        Ok(ColumnarValue::Scalar(ScalarValue::Utf8(Some(format!(
+            "PostgreSQL {SERVER_VERSION}"
+        )))))
+    };
+
+    let udf = create_udf(
+        "version",
+        vec![],
+        DataType::Utf8,
+        Volatility::Stable,
+        Arc::new(fun),
+    )
+    .with_aliases(["pg_catalog.version"]);
+    ctx.register_udf(udf);
+    Ok(())
+}
+
 /// pg_catalog.pg_get_viewdef(oid [, bool]) → text
 ///
 /// Returns NULL placeholder for now.

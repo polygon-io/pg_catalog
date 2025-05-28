@@ -210,7 +210,15 @@ def test_name_cast_literal(server):
         cur = conn.cursor()
         cur.execute("SELECT '_RETURN'::name")
         row = cur.fetchone()
-        assert row == ("_RETURN",)
+    assert row == ("_RETURN",)
+
+
+def test_server_version_function(server):
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT version()")
+        row = cur.fetchone()
+        assert "17.4.0" in row[0]
 
 
 def test_quote_ident_and_translate(server):
