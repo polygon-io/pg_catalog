@@ -1183,6 +1183,83 @@ pub fn rewrite_oidvector_unnest(sql: &str) -> Result<String> {
     }
 }
 
+/// Wrap ANY() predicates on oidvector columns with `oidvector_to_array()`.
+///
+/// DataFusion expects the right-hand side of `= ANY()` to be an array but our
+/// catalogue stores `oidvector` columns as text. This rewrite inserts a call to
+/// `oidvector_to_array` so comparisons can be planned.
+pub fn rewrite_oidvector_any(sql: &str) -> Result<String> {
+    use sqlparser::ast::{
+        visit_expressions_mut, visit_statements_mut, Expr, Function,
+        FunctionArg, FunctionArgExpr, FunctionArguments, FunctionArgumentList,
+        Ident, ObjectNamePart,
+    };
+    use sqlparser::dialect::PostgreSqlDialect;
+    use sqlparser::parser::Parser;
+    use std::ops::ControlFlow;
+
+    fn is_target_ident(id: &Ident) -> bool {
+        matches!(id.value.to_lowercase().as_str(), "indclass" | "indcollation")
+    }
+
+    fn needs_rewrite(expr: &Expr) -> bool {
+        match expr {
+            Expr::Identifier(id) => is_target_ident(id),
+            Expr::CompoundIdentifier(parts) => parts
+                .last()
+                .map(is_target_ident)
+                .unwrap_or(false),
+            _ => false,
+        }
+    }
+
+    let dialect = PostgreSqlDialect {};
+    let mut stmts = Parser::parse_sql(&dialect, sql)
+        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+    let mut rewritten = false;
+
+    visit_statements_mut(&mut stmts, |stmt| {
+        visit_expressions_mut(stmt, |e| {
+            if let Expr::AnyOp { right, .. } = e {
+                if needs_rewrite(right) {
+                    let inner = right.as_ref().clone();
+                    let wrapped = Expr::Function(Function {
+                        name: sqlparser::ast::ObjectName(vec![
+                            ObjectNamePart::Identifier(Ident::new("oidvector_to_array")),
+                        ]),
+                        args: FunctionArguments::List(FunctionArgumentList {
+                            duplicate_treatment: None,
+                            clauses: vec![],
+                            args: vec![FunctionArg::Unnamed(FunctionArgExpr::Expr(inner))],
+                        }),
+                        over: None,
+                        filter: None,
+                        within_group: vec![],
+                        null_treatment: None,
+                        parameters: FunctionArguments::None,
+                        uses_odbc_syntax: false,
+                    });
+                    *right = Box::new(wrapped);
+                    rewritten = true;
+                }
+            }
+            ControlFlow::<()>::Continue(())
+        })?;
+        ControlFlow::Continue(())
+    });
+
+    if rewritten {
+        Ok(stmts
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>()
+            .join("; "))
+    } else {
+        Ok(sql.to_owned())
+    }
+}
+
 
 /// Rewrite a Postgres array literal in curly-brace notation
 /// (`'{1,2,3}'`, `'{"a","b"}'`, …) into an `Expr::Array`, which
@@ -1639,6 +1716,17 @@ mod tests {
 
         let plain = "SELECT unnest(col) FROM t";
         assert_eq!(rewrite_oidvector_unnest(plain).unwrap(), plain);
+        Ok(())
+    }
+
+    #[test]
+    fn test_rewrite_oidvector_any() -> Result<(), Box<dyn std::error::Error>> {
+        let input = "SELECT 1 FROM t WHERE 10 = ANY(indclass)";
+        let expected = "SELECT 1 FROM t WHERE 10 = ANY(oidvector_to_array(indclass))";
+        assert_eq!(rewrite_oidvector_any(input).unwrap(), expected);
+
+        let plain = "SELECT 1 FROM t WHERE 10 = ANY(other)";
+        assert_eq!(rewrite_oidvector_any(plain).unwrap(), plain);
         Ok(())
     }
 
