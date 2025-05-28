@@ -25,10 +25,12 @@ use datafusion::physical_plan::collect;
 
 pub fn map_pg_type(pg_type: &str) -> DataType {
     let lower = pg_type.to_lowercase();
-    if lower.ends_with("[]") || lower.starts_with('_') {
-        return DataType::List(Arc::new(Field::new("item", DataType::Utf8, true)));
-    }
     match lower.as_str() {
+        "oidvector" => DataType::List(Arc::new(Field::new("item", DataType::Int64, true))),
+        "int2vector" => DataType::List(Arc::new(Field::new("item", DataType::Int32, true))),
+        _ if lower.ends_with("[]") || lower.starts_with('_') => {
+            DataType::List(Arc::new(Field::new("item", DataType::Utf8, true)))
+        }
         "uuid" => DataType::Utf8,
         "int" | "integer" | "int4" => DataType::Int32,
         "bigint" | "int8" => DataType::Int64,
@@ -200,6 +202,16 @@ mod tests {
 
         match map_pg_type("_text") {
             DataType::List(field) => assert_eq!(field.data_type(), &DataType::Utf8),
+            other => panic!("unexpected datatype: {other:?}"),
+        }
+
+        match map_pg_type("oidvector") {
+            DataType::List(field) => assert_eq!(field.data_type(), &DataType::Int64),
+            other => panic!("unexpected datatype: {other:?}"),
+        }
+
+        match map_pg_type("int2vector") {
+            DataType::List(field) => assert_eq!(field.data_type(), &DataType::Int32),
             other => panic!("unexpected datatype: {other:?}"),
         }
     }

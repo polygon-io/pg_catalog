@@ -170,3 +170,6 @@ exec_error query: "select R.ev_class as table_id, R.oid as rule_id, ... and R.ru
 exec_error error: NotImplemented("Unsupported SQL type Custom(ObjectName([Identifier(Ident { value: \"name\" ... }))]))")
 ## # Task 44: Done
 `::name` casts were unsupported by the parser. Added `rewrite_name_cast` to convert them to TEXT and invoked it during query rewriting. New tests confirm the cast succeeds.
+
+# Task 43: Done
+Updated pg_index handling so indclass is parsed as an array. Added relam-based query and functional test.
