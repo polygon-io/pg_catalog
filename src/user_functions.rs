@@ -943,6 +943,53 @@ pub fn register_pg_get_array(ctx: &SessionContext) -> Result<()> {
     Ok(())
 }
 
+/// Convert an oidvector stored as text into an array of BIGINT oids.
+pub fn register_oidvector_to_array(ctx: &SessionContext) -> Result<()> {
+    use arrow::array::{as_string_array, ArrayRef, Int64Builder, ListBuilder};
+    use arrow::datatypes::{DataType, Field};
+    use datafusion::logical_expr::{create_udf, ColumnarValue, Volatility};
+    use std::sync::Arc;
+
+    let fun = |args: &[ColumnarValue]| -> Result<ColumnarValue> {
+        let arrays = ColumnarValue::values_to_arrays(args)?;
+        let arr = as_string_array(&arrays[0]);
+
+        let mut builder = ListBuilder::new(Int64Builder::new());
+        for i in 0..arr.len() {
+            if arr.is_null(i) {
+                builder.append(false);
+                continue;
+            }
+            let txt = arr.value(i);
+            if !txt.trim().is_empty() {
+                for tok in txt.split_whitespace() {
+                    let oid: i64 = tok.parse().map_err(|_| {
+                        DataFusionError::Execution(format!(
+                            "invalid oid value '{}'",
+                            tok
+                        ))
+                    })?;
+                    builder.values().append_value(oid);
+                }
+            }
+            builder.append(true);
+        }
+        Ok(ColumnarValue::Array(Arc::new(builder.finish()) as ArrayRef))
+    };
+
+    let list_dt = DataType::List(Arc::new(Field::new("item", DataType::Int64, true)));
+    let udf = create_udf(
+        "oidvector_to_array",
+        vec![DataType::Utf8],
+        list_dt.clone(),
+        Volatility::Immutable,
+        Arc::new(fun),
+    )
+    .with_aliases(["pg_catalog.oidvector_to_array"]);
+    ctx.register_udf(udf);
+    Ok(())
+}
+
 
 #[derive(Debug)]
 struct PostmasterStartTimeTable {
@@ -2259,6 +2306,27 @@ mod tests {
             .downcast_ref::<StringArray>()
             .unwrap()
             .is_null(0));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn oidvector_to_array_parses() -> Result<()> {
+        use arrow::array::{Int64Array, ListArray};
+        let ctx = SessionContext::new();
+        register_oidvector_to_array(&ctx)?;
+        let batches = ctx
+            .sql("SELECT oidvector_to_array('1 2 3') AS v")
+            .await?
+            .collect()
+            .await?;
+        let list = batches[0]
+            .column(0)
+            .as_any()
+            .downcast_ref::<ListArray>()
+            .unwrap();
+        let inner = list.value(0);
+        let inner = inner.as_any().downcast_ref::<Int64Array>().unwrap();
+        assert_eq!(inner.values(), &[1, 2, 3]);
         Ok(())
     }
 

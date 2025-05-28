@@ -32,6 +32,7 @@ use crate::replace::{
     rewrite_xid_cast, rewrite_name_cast,
     rewrite_regoper_cast, rewrite_regoperator_cast, rewrite_regprocedure_cast, rewrite_regproc_cast,
     rewrite_available_updates,
+    rewrite_oidvector_unnest,
     rewrite_tuple_equality,
     rewrite_schema_qualified_custom_types,
     rewrite_schema_qualified_text,
@@ -240,6 +241,7 @@ pub fn rewrite_filters(sql: &str) -> datafusion::error::Result<(String, HashMap<
     let sql = rewrite_xid_cast(&sql)?;
     let sql = rewrite_name_cast(&sql)?;
     let sql = rewrite_oid_cast(&sql)?;
+    let sql = rewrite_oidvector_unnest(&sql)?;
     let sql = rewrite_tuple_equality(&sql)?;
     let (sql, aliases) = alias_all_columns(&sql)?;
     let sql = rewrite_subquery_as_cte(&sql);
