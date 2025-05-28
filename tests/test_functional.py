@@ -248,6 +248,26 @@ def test_getdef_functions(server):
         row = cur.fetchone()
         assert row == (None,)
 
+def test_misc_missing_functions(server):
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+
+        cur.execute("SELECT pg_catalog.encode(NULL::bytea, 'escape')")
+        row = cur.fetchone()
+        assert row == (None,)
+
+        cur.execute("SELECT pg_catalog.pg_get_triggerdef(1)")
+        row = cur.fetchone()
+        assert row == (None,)
+
+        cur.execute("SELECT pg_catalog.upper('abc')")
+        row = cur.fetchone()
+        assert row == ('ABC',)
+
+        cur.execute("SELECT pg_catalog.pg_get_ruledef(1)")
+        row = cur.fetchone()
+        assert row == (None,)
+
 def test_pg_get_expr_int64(server):
     """pg_get_expr should accept BIGINT arguments produced by ::oid casts."""
     with psycopg.connect(CONN_STR) as conn:
