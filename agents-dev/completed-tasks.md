@@ -129,3 +129,5 @@ Unit tests updated accordingly and all tests pass.
 Fixed GROUP BY error when rewriting subqueries using `array_agg`.
 `array_agg` is now treated as an aggregate function so the join key is grouped.
 Added unit test `injects_group_by_for_array_agg` verifying the rewrite.
+## # Task 35: Done
+Fixed correlated subqueries referencing later table aliases. `rewrite_subquery_as_cte` now searches all FROM aliases when lifting scalars so joins attach to the correct table. Added test `correlated_with_second_alias` covering this path.

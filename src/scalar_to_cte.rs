@@ -568,7 +568,7 @@ mod rewriter {
         fn rewrite_expr(
             &mut self,
             expr: &mut Expr,
-            outer_alias: &Ident,
+            outer_aliases: &[Ident],
             w: &mut Option<With>,
             sel: &mut Select,
         ) {
@@ -576,7 +576,7 @@ mod rewriter {
                 // ───────────── scalar sub-query → CTE ─────────────
                 Expr::Subquery(_) => {
                     let fake = SelectItem::UnnamedExpr(expr.clone());
-                    if let Some(info) = self.analyse_scalar(&fake, outer_alias) {
+                    if let Some(info) = self.analyse_scalar(&fake, outer_aliases) {
                         self.push_cte(w, &info);
                         self.add_join(sel, &info);
 
@@ -589,31 +589,31 @@ mod rewriter {
                 Expr::Function(func) => {
                     if let FunctionArguments::List(list) = &mut func.args {
                         for arg in &mut list.args {
-                            if let FunctionArg::Unnamed(FunctionArgExpr::Expr(boxed))
-                            | FunctionArg::Named { arg: FunctionArgExpr::Expr(boxed), .. } = arg
-                            {
-                                self.rewrite_expr(boxed, outer_alias, w, sel);
-                            }
+                    if let FunctionArg::Unnamed(FunctionArgExpr::Expr(boxed))
+                    | FunctionArg::Named { arg: FunctionArgExpr::Expr(boxed), .. } = arg
+                    {
+                        self.rewrite_expr(boxed, outer_aliases, w, sel);
+                    }
                         }
                     }
                 }
                 Expr::BinaryOp { left, right, .. } => {
-                    self.rewrite_expr(left,  outer_alias, w, sel);
-                    self.rewrite_expr(right, outer_alias, w, sel);
+                    self.rewrite_expr(left,  outer_aliases, w, sel);
+                    self.rewrite_expr(right, outer_aliases, w, sel);
                 }
-                Expr::Nested(inner)        => self.rewrite_expr(inner, outer_alias, w, sel),
-                Expr::UnaryOp { expr, .. } => self.rewrite_expr(expr, outer_alias, w, sel),
-                Expr::Cast { expr, .. }    => self.rewrite_expr(expr, outer_alias, w, sel),
+                Expr::Nested(inner)        => self.rewrite_expr(inner, outer_aliases, w, sel),
+                Expr::UnaryOp { expr, .. } => self.rewrite_expr(expr, outer_aliases, w, sel),
+                Expr::Cast { expr, .. }    => self.rewrite_expr(expr, outer_aliases, w, sel),
                 Expr::Case { operand, conditions, else_result, .. } => {
                     if let Some(op) = operand {
-                        self.rewrite_expr(op, outer_alias, w, sel);
+                        self.rewrite_expr(op, outer_aliases, w, sel);
                     }
                     for CaseWhen { condition, result } in conditions {
-                        self.rewrite_expr(condition, outer_alias, w, sel);
-                        self.rewrite_expr(result,    outer_alias, w, sel);
+                        self.rewrite_expr(condition, outer_aliases, w, sel);
+                        self.rewrite_expr(result,    outer_aliases, w, sel);
                     }
                     if let Some(er) = else_result {
-                        self.rewrite_expr(er, outer_alias, w, sel);
+                        self.rewrite_expr(er, outer_aliases, w, sel);
                     }
                 }
                 _ => {}
@@ -691,7 +691,7 @@ mod rewriter {
             w.as_mut().unwrap()
         }
 
-        fn analyse_scalar(&mut self, sel_item : &SelectItem,  outer_alias: &Ident) -> Option<CorrelatedInfo> {
+        fn analyse_scalar(&mut self, sel_item : &SelectItem,  outer_aliases: &[Ident]) -> Option<CorrelatedInfo> {
             
             let expr = match sel_item {
                 SelectItem::UnnamedExpr(e)
@@ -704,24 +704,41 @@ mod rewriter {
         
             // we only support plain SELECT sub-queries for now
             if let SetExpr::Select(inner_sel) = sub.body.as_ref() {
-                let mut pairs      = Vec::<CorrPred>::new();
-                let mut outer_only = Vec::<Expr>::new();
-
                 if let Some(pred) = &inner_sel.selection {
-                    for c in split_and(pred) {
-                        if is_outer_only(&c, outer_alias) {
-                            outer_only.push(c);
+                    for alias in outer_aliases {
+                        let mut pairs = Vec::<CorrPred>::new();
+                        collect_corr_preds(pred, alias, &mut pairs);
+                        let mut outer_only = Vec::new();
+                        for c in split_and(pred) {
+                            if is_outer_only(&c, alias) {
+                                outer_only.push(c);
+                            }
+                        }
+                        if !pairs.is_empty() || !outer_only.is_empty() {
+                            return Some(CorrelatedInfo {
+                                cte_ident : self.fresh_name(),
+                                subquery  : sub.clone(),
+                                on_pairs  : pairs,
+                                outer_only,
+                                outer_alias: alias.clone(),
+                                orig_alias: match sel_item {
+                                    SelectItem::ExprWithAlias { alias, .. } => Some(alias.clone()),
+                                    _ => None,
+                                },
+                            });
                         }
                     }
-                    collect_corr_preds(pred, outer_alias, &mut pairs);
                 }
 
-                Some(CorrelatedInfo{
+                Some(CorrelatedInfo {
                     cte_ident : self.fresh_name(),
                     subquery  : sub.clone(),
-                    on_pairs  : pairs,
-                    outer_only,
-                    outer_alias: outer_alias.clone(),
+                    on_pairs  : Vec::new(),
+                    outer_only: Vec::new(),
+                    outer_alias: outer_aliases
+                        .first()
+                        .cloned()
+                        .unwrap_or_else(|| Ident::new("_outer")),
                     orig_alias: match sel_item {
                         SelectItem::ExprWithAlias { alias, .. } => Some(alias.clone()),
                         _ => None,
@@ -1039,21 +1056,40 @@ mod rewriter {
         fn visit_select_mut(&mut self, w: &mut Option<With>, sel: &mut Select) {
 
             // ---------- outer alias (very first table name / alias) ----------
-            let outer_alias: Ident = sel
-            .from
-            .get(0)
-            .and_then(|twj| match &twj.relation {
-                // explicit alias  →  use it
-                TableFactor::Table { alias: Some(a), .. }
-                | TableFactor::Derived { alias: Some(a), .. } => Some(a.name.clone()),
-                // otherwise   first identifier of the table name
-                TableFactor::Table { name, .. } => match name.0.first() {
-                    Some(ObjectNamePart::Identifier(id)) => Some(id.clone()),
+            // gather aliases from FROM clause (main table and joins)
+            let mut outer_aliases: Vec<Ident> = Vec::new();
+            for twj in &sel.from {
+                if let Some(a) = match &twj.relation {
+                    TableFactor::Table { alias: Some(a), .. }
+                    | TableFactor::Derived { alias: Some(a), .. } => Some(a.name.clone()),
+                    TableFactor::Table { name, .. } => match name.0.first() {
+                        Some(ObjectNamePart::Identifier(id)) => Some(id.clone()),
+                        _ => None,
+                    },
                     _ => None,
-                },
-                _ => None,
-            })
-            .unwrap_or_else(|| Ident::new("_outer"));
+                } {
+                    outer_aliases.push(a);
+                }
+
+                for join in &twj.joins {
+                    if let Some(a) = match &join.relation {
+                        TableFactor::Table { alias: Some(a), .. }
+                        | TableFactor::Derived { alias: Some(a), .. } => Some(a.name.clone()),
+                        TableFactor::Table { name, .. } => match name.0.first() {
+                            Some(ObjectNamePart::Identifier(id)) => Some(id.clone()),
+                            _ => None,
+                        },
+                        _ => None,
+                    } {
+                        outer_aliases.push(a);
+                    }
+                }
+            }
+
+            let outer_alias = outer_aliases
+                .first()
+                .cloned()
+                .unwrap_or_else(|| Ident::new("_outer"));
 
 
             // ---------- recurse into every projection expr first ----------
@@ -1070,7 +1106,7 @@ mod rewriter {
                 {
                     let before = self.converted;
 
-                    self.rewrite_expr(expr, &outer_alias, w, sel);
+                    self.rewrite_expr(expr, &outer_aliases, w, sel);
 
                     if self.converted > before {
                         if let SelectItem::UnnamedExpr(e) = item {
@@ -1099,7 +1135,7 @@ mod rewriter {
                 if let SelectItem::UnnamedExpr(e)
                 | SelectItem::ExprWithAlias { expr: e, .. } = item
                 {
-                    if let Some(info) = self.analyse_scalar(item, &outer_alias) {
+                    if let Some(info) = self.analyse_scalar(item, &outer_aliases) {
                         collected.push((idx, info));
                     }
                 }
@@ -1314,6 +1350,15 @@ mod tests {
             out.sql.contains("ON t1.flag"),
             "predicate not copied to JOIN"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn correlated_with_second_alias() -> Result<()> {
+        let q = "SELECT (SELECT 1 FROM t2 b WHERE b.id = j.id) FROM t1 i JOIN t1 j ON i.id = j.id";
+        let out = rewrite(q)?;
+        println!("correlated_with_second_alias {:?}", out.sql);
+        assert!(out.sql.contains("j.id = __cte1.id"), "join predicate not using second alias");
         Ok(())
     }
 
