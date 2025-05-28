@@ -135,6 +135,13 @@ def test_show_transaction_isolation_level(server):
         row = cur.fetchone()
         assert row == ("read committed",)
 
+
+def test_discard_all(server):
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+        cur.execute("DISCARD ALL")
+        assert cur.statusmessage == "DISCARD ALL"
+
 def test_system_columns_virtual(server):
     with psycopg.connect(CONN_STR) as conn:
         cur = conn.cursor()

@@ -206,3 +206,6 @@ Unit tests verify the rewrite and casting now succeeds.
 # Task 45:
 exec_error query: "select T.tgrelid as table_id,\n       T.oid as trigger_id,\n       T.xmin as trigger_state_number,\n       T.tgname as trigger_name,\n       T.tgfoid as function_id,\n       pg_catalog.encode(T.tgargs, 'escape') as function_args,\n       T.tgtype as bits,\n       T.tgdeferrable as is_deferrable,\n       T.tginitdeferred as is_init_deferred,\n       T.tgenabled as trigger_fire_mode,\n       T.tgattr as columns,\n       T.tgconstraint != 0 as is_constraint,\n       T.tgoldtable /* null */ as old_table_name,\n       T.tgnewtable /* null */ as new_table_name,\n       pg_catalog.pg_get_triggerdef(T.oid, true) as source_code\nfrom pg_catalog.pg_trigger T\njoin pg_catalog.pg_class TAB on TAB.oid = T.tgrelid and TAB.relnamespace = $1::oid\nwhere true\n  --  and TAB.relname in ( :[*f_names] )\n  and pg_catalog.age(T.xmin) <= coalesce(nullif(greatest(pg_catalog.age($2::varchar::xid), -1), -1), 21
 
+
+## # Task 62: Done
+Implemented DISCARD ALL stub in the server. It returns the \"DISCARD ALL\" tag without running DataFusion.

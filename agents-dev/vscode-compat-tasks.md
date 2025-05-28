@@ -18,6 +18,10 @@ exec_error error: NotImplemented("Unsupported SQL statement: DISCARD ALL")
 
 just put a stub as discard all
 
+## Task 62: Done
+Implemented a stub handler for `DISCARD ALL` in the pgwire server.
+The command now returns the `DISCARD ALL` tag without error.
+
 # Task 63:
 
 exec_error query: "SELECT\n    db.oid as oid, \n    db.datname as name, \n    ta.spcname as spcname, \n    db.datallowconn,\n    db.datlastsysoid,\n    has_database_privilege(db.oid, 'CREATE') as cancreate, \n    datdba as owner, \n    db.datistemplate , \n    has_database_privilege(db.datname, 'connect') as canconnect,\n    datistemplate as is_system\n\nFROM\n    pg_database db\n    LEFT OUTER JOIN pg_tablespace ta ON db.dattablespace = ta.oid\n\nORDER BY datname;"
