@@ -488,6 +488,60 @@ fn build_table(def: TableDef) -> (SchemaRef, Vec<RecordBatch>) {
                         }
                         Arc::new(builder.finish())
                     },
+                    DataType::List(inner) if inner.data_type() == &DataType::Int64 => {
+                        let mut builder = ListBuilder::new(Int64Builder::new());
+                        for v in col_data {
+                            if let Some(items) = v.as_array() {
+                                for item in items {
+                                    match item.as_i64() {
+                                        Some(num) => builder.values().append_value(num),
+                                        None => builder.values().append_null(),
+                                    }
+                                }
+                                builder.append(true);
+                            } else if let Some(s) = v.as_str() {
+                                for part in s.split_whitespace() {
+                                    match part.parse::<i64>() {
+                                        Ok(num) => builder.values().append_value(num),
+                                        Err(_) => builder.values().append_null(),
+                                    }
+                                }
+                                builder.append(true);
+                            } else if v.is_null() {
+                                builder.append(false);
+                            } else {
+                                builder.append(false);
+                            }
+                        }
+                        Arc::new(builder.finish())
+                    },
+                    DataType::List(inner) if inner.data_type() == &DataType::Int32 => {
+                        let mut builder = ListBuilder::new(Int32Builder::new());
+                        for v in col_data {
+                            if let Some(items) = v.as_array() {
+                                for item in items {
+                                    match item.as_i64() {
+                                        Some(num) => builder.values().append_value(num as i32),
+                                        None => builder.values().append_null(),
+                                    }
+                                }
+                                builder.append(true);
+                            } else if let Some(s) = v.as_str() {
+                                for part in s.split_whitespace() {
+                                    match part.parse::<i32>() {
+                                        Ok(num) => builder.values().append_value(num),
+                                        Err(_) => builder.values().append_null(),
+                                    }
+                                }
+                                builder.append(true);
+                            } else if v.is_null() {
+                                builder.append(false);
+                            } else {
+                                builder.append(false);
+                            }
+                        }
+                        Arc::new(builder.finish())
+                    },
 
                     _ => Arc::new(StringArray::from(
                         col_data.into_iter()

@@ -164,3 +164,6 @@ exec_error error: NotImplemented("Unsupported SQL type Custom(ObjectName([Identi
 # Task 34: done
 Implemented `rewrite_xid_cast` to map casts to `xid` into `BIGINT` so queries using
 this system type can be planned. Added unit tests verifying the rewrite.
+
+# Task 43: Done
+Updated pg_index handling so indclass is parsed as an array. Added relam-based query and functional test.
