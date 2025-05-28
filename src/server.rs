@@ -42,6 +42,8 @@ use crate::user_functions::{
     register_pg_get_function_result,
     register_pg_get_function_sqlbody,
     register_pg_get_indexdef,
+    register_pg_get_triggerdef,
+    register_pg_get_ruledef,
     register_pg_get_one,
     register_pg_get_statisticsobjdef_columns,
     register_pg_get_viewdef,
@@ -64,6 +66,8 @@ use crate::user_functions::{
     register_scalar_pg_tablespace_location,
     register_scalar_regclass_oid,
     register_scalar_txid_current,
+    register_encode,
+    register_upper,
     register_translate,
 };
 use tokio::net::TcpStream;
@@ -864,6 +868,10 @@ pub async fn start_server(base_ctx: Arc<SessionContext>, addr: &str,
             register_pg_get_function_result(&ctx)?;
             register_pg_get_function_sqlbody(&ctx)?;
             register_pg_get_indexdef(&ctx)?;
+            register_pg_get_triggerdef(&ctx)?;
+            register_pg_get_ruledef(&ctx)?;
+            register_encode(&ctx)?;
+            register_upper(&ctx)?;
 
             
             let df = ctx.sql("SELECT datname FROM pg_catalog.pg_database where datname='pgtry'").await?;

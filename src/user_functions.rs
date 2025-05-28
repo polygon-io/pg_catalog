@@ -1218,6 +1218,41 @@ pub fn register_translate(ctx: &SessionContext) -> Result<()> {
     Ok(())
 }
 
+/// pg_catalog.upper(text) -> text
+///
+/// Simple uppercase implementation.
+pub fn register_upper(ctx: &SessionContext) -> Result<()> {
+    use arrow::array::{as_string_array, ArrayRef, StringBuilder};
+    use arrow::datatypes::DataType;
+    use datafusion::logical_expr::{create_udf, ColumnarValue, Volatility};
+    use std::sync::Arc;
+
+    let fun = |args: &[ColumnarValue]| -> Result<ColumnarValue> {
+        let arrays = ColumnarValue::values_to_arrays(args)?;
+        let arr = as_string_array(&arrays[0]);
+        let mut b = StringBuilder::with_capacity(arr.len(), arr.len() * 4);
+        for i in 0..arr.len() {
+            if arr.is_null(i) {
+                b.append_null();
+            } else {
+                b.append_value(arr.value(i).to_uppercase());
+            }
+        }
+        Ok(ColumnarValue::Array(Arc::new(b.finish()) as ArrayRef))
+    };
+
+    let udf = create_udf(
+        "pg_catalog.upper",
+        vec![DataType::Utf8],
+        DataType::Utf8,
+        Volatility::Stable,
+        Arc::new(fun),
+    )
+    .with_aliases(["upper"]);
+    ctx.register_udf(udf);
+    Ok(())
+}
+
 /// pg_catalog.pg_get_viewdef(oid [, bool]) → text
 ///
 /// Returns NULL placeholder for now.
@@ -1397,6 +1432,158 @@ pub fn register_pg_get_function_sqlbody(ctx: &SessionContext) -> Result<()> {
         Arc::new(fun),
     )
     .with_aliases(["pg_get_function_sqlbody"]);
+    ctx.register_udf(udf);
+    Ok(())
+}
+
+/// pg_catalog.encode(bytea, text) -> text
+///
+/// Placeholder implementation returning NULL.
+pub fn register_encode(ctx: &SessionContext) -> Result<()> {
+    use arrow::array::{ArrayRef, StringBuilder};
+    use arrow::datatypes::DataType;
+    use datafusion::logical_expr::{create_udf, ColumnarValue, Volatility};
+    use std::sync::Arc;
+
+    let fun = |args: &[ColumnarValue]| -> Result<ColumnarValue> {
+        let len = match args.first() {
+            Some(ColumnarValue::Array(a)) => a.len(),
+            _ => 1,
+        };
+        let mut b = StringBuilder::with_capacity(len, len);
+        for _ in 0..len {
+            b.append_null();
+        }
+        Ok(ColumnarValue::Array(Arc::new(b.finish()) as ArrayRef))
+    };
+
+    let udf = create_udf(
+        "pg_catalog.encode",
+        vec![DataType::Binary, DataType::Utf8],
+        DataType::Utf8,
+        Volatility::Stable,
+        Arc::new(fun),
+    )
+    .with_aliases(["encode"]);
+    ctx.register_udf(udf);
+    Ok(())
+}
+
+/// pg_catalog.pg_get_triggerdef(oid [, bool]) -> text
+///
+/// Returns NULL placeholder.
+pub fn register_pg_get_triggerdef(ctx: &SessionContext) -> Result<()> {
+    use arrow::array::{ArrayRef, StringBuilder};
+    use arrow::datatypes::DataType;
+    use datafusion::logical_expr::{
+        ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature,
+        TypeSignature, Volatility,
+    };
+    use std::sync::Arc;
+
+    #[derive(Debug)]
+    struct PgGetTriggerDef {
+        sig: Signature,
+    }
+
+    impl PgGetTriggerDef {
+        fn new() -> Self {
+            Self {
+                sig: Signature::one_of(
+                    vec![TypeSignature::Any(1), TypeSignature::Any(2)],
+                    Volatility::Stable,
+                ),
+            }
+        }
+    }
+
+    impl ScalarUDFImpl for PgGetTriggerDef {
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+        fn name(&self) -> &str {
+            "pg_catalog.pg_get_triggerdef"
+        }
+        fn signature(&self) -> &Signature {
+            &self.sig
+        }
+        fn return_type(&self, _t: &[DataType]) -> Result<DataType> {
+            Ok(DataType::Utf8)
+        }
+        fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
+            let len = match args.args.first() {
+                Some(ColumnarValue::Array(a)) => a.len(),
+                _ => 1,
+            };
+            let mut b = StringBuilder::with_capacity(len, len);
+            for _ in 0..len {
+                b.append_null();
+            }
+            Ok(ColumnarValue::Array(Arc::new(b.finish()) as ArrayRef))
+        }
+    }
+
+    let udf = ScalarUDF::new_from_impl(PgGetTriggerDef::new())
+        .with_aliases(["pg_get_triggerdef"]);
+    ctx.register_udf(udf);
+    Ok(())
+}
+
+/// pg_catalog.pg_get_ruledef(oid [, bool]) -> text
+///
+/// Returns NULL placeholder.
+pub fn register_pg_get_ruledef(ctx: &SessionContext) -> Result<()> {
+    use arrow::array::{ArrayRef, StringBuilder};
+    use arrow::datatypes::DataType;
+    use datafusion::logical_expr::{
+        ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature,
+        TypeSignature, Volatility,
+    };
+    use std::sync::Arc;
+
+    #[derive(Debug)]
+    struct PgGetRuleDef {
+        sig: Signature,
+    }
+
+    impl PgGetRuleDef {
+        fn new() -> Self {
+            Self {
+                sig: Signature::one_of(
+                    vec![TypeSignature::Any(1), TypeSignature::Any(2)],
+                    Volatility::Stable,
+                ),
+            }
+        }
+    }
+
+    impl ScalarUDFImpl for PgGetRuleDef {
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+        fn name(&self) -> &str {
+            "pg_catalog.pg_get_ruledef"
+        }
+        fn signature(&self) -> &Signature {
+            &self.sig
+        }
+        fn return_type(&self, _t: &[DataType]) -> Result<DataType> {
+            Ok(DataType::Utf8)
+        }
+        fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
+            let len = match args.args.first() {
+                Some(ColumnarValue::Array(a)) => a.len(),
+                _ => 1,
+            };
+            let mut b = StringBuilder::with_capacity(len, len);
+            for _ in 0..len {
+                b.append_null();
+            }
+            Ok(ColumnarValue::Array(Arc::new(b.finish()) as ArrayRef))
+        }
+    }
+
+    let udf = ScalarUDF::new_from_impl(PgGetRuleDef::new()).with_aliases(["pg_get_ruledef"]);
     ctx.register_udf(udf);
     Ok(())
 }
@@ -1996,6 +2183,82 @@ mod tests {
             .downcast_ref::<Int64Array>()
             .unwrap();
         assert_eq!(arr.value(0), 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn encode_returns_null() -> Result<()> {
+        use arrow::array::StringArray;
+        let ctx = SessionContext::new();
+        register_encode(&ctx)?;
+        let batches = ctx
+            .sql("SELECT pg_catalog.encode(NULL::bytea, 'escape')")
+            .await?
+            .collect()
+            .await?;
+        assert!(batches[0]
+            .column(0)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap()
+            .is_null(0));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn pg_get_triggerdef_returns_null() -> Result<()> {
+        use arrow::array::StringArray;
+        let ctx = SessionContext::new();
+        register_pg_get_triggerdef(&ctx)?;
+        let batches = ctx
+            .sql("SELECT pg_catalog.pg_get_triggerdef(1)")
+            .await?
+            .collect()
+            .await?;
+        assert!(batches[0]
+            .column(0)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap()
+            .is_null(0));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn upper_converts_text() -> Result<()> {
+        use arrow::array::StringArray;
+        let ctx = SessionContext::new();
+        register_upper(&ctx)?;
+        let batches = ctx
+            .sql("SELECT pg_catalog.upper('abc')")
+            .await?
+            .collect()
+            .await?;
+        let arr = batches[0]
+            .column(0)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+        assert_eq!(arr.value(0), "ABC");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn pg_get_ruledef_returns_null() -> Result<()> {
+        use arrow::array::StringArray;
+        let ctx = SessionContext::new();
+        register_pg_get_ruledef(&ctx)?;
+        let batches = ctx
+            .sql("SELECT pg_catalog.pg_get_ruledef(1)")
+            .await?
+            .collect()
+            .await?;
+        assert!(batches[0]
+            .column(0)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap()
+            .is_null(0));
         Ok(())
     }
 
