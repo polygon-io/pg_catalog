@@ -1176,6 +1176,77 @@ pub fn rewrite_brace_array_literal(sql: &str) -> Result<String> {
         .join("; "))
 }
 
+/// Replace tuple equality `(a, b) = (c, d)` with `a = c AND b = d`.
+///
+/// DataFusion does not support tuple comparisons, so we decompose them
+/// into a conjunction of element comparisons. Only equality is handled;
+/// all other expressions are left untouched.
+pub fn rewrite_tuple_equality(sql: &str) -> Result<String> {
+    use sqlparser::ast::{
+        visit_expressions_mut, visit_statements_mut, BinaryOperator, Expr,
+    };
+    use sqlparser::dialect::PostgreSqlDialect;
+    use sqlparser::parser::Parser;
+    use std::ops::ControlFlow;
+
+    let dialect = PostgreSqlDialect {};
+    let mut stmts = Parser::parse_sql(&dialect, sql)
+        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+    visit_statements_mut(&mut stmts, |stmt| {
+        visit_expressions_mut(stmt, |expr| {
+            if let Expr::BinaryOp { left, op, right } = expr {
+                if matches!(op, BinaryOperator::Eq)
+                    && matches!(left.as_ref(), Expr::Tuple(_))
+                    && matches!(right.as_ref(), Expr::Tuple(_))
+                {
+                    let l_elems = match left.as_ref() {
+                        Expr::Tuple(list) => list.clone(),
+                        _ => unreachable!(),
+                    };
+                    let r_elems = match right.as_ref() {
+                        Expr::Tuple(list) => list.clone(),
+                        _ => unreachable!(),
+                    };
+
+                    if l_elems.len() == r_elems.len() && !l_elems.is_empty() {
+                        let mut pairs = l_elems.into_iter().zip(r_elems.into_iter());
+                        let (l_first, r_first) = pairs.next().unwrap();
+                        let mut new_expr = Expr::BinaryOp {
+                            left: Box::new(l_first),
+                            op: BinaryOperator::Eq,
+                            right: Box::new(r_first),
+                        };
+
+                        for (l, r) in pairs {
+                            let pair_expr = Expr::BinaryOp {
+                                left: Box::new(l),
+                                op: BinaryOperator::Eq,
+                                right: Box::new(r),
+                            };
+                            new_expr = Expr::BinaryOp {
+                                left: Box::new(new_expr),
+                                op: BinaryOperator::And,
+                                right: Box::new(pair_expr),
+                            };
+                        }
+
+                        *expr = new_expr;
+                    }
+                }
+            }
+            ControlFlow::<()>::Continue(())
+        })?;
+        ControlFlow::Continue(())
+    });
+
+    Ok(stmts
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<_>>()
+        .join("; "))
+}
+
 
 
 #[cfg(test)]
@@ -1522,6 +1593,18 @@ mod tests {
 
         let plain = "SELECT 1";
         assert_eq!(rewrite_schema_qualified_udtfs(plain).unwrap(), plain);
+        Ok(())
+    }
+
+    #[test]
+    fn test_rewrite_tuple_equality() -> Result<(), Box<dyn std::error::Error>> {
+        let input = "SELECT * FROM t JOIN u ON (t.a, t.b) = (u.c, u.d)";
+        let expected = "SELECT * FROM t JOIN u ON t.a = u.c AND t.b = u.d";
+        assert_eq!(rewrite_tuple_equality(input).unwrap(), expected);
+
+        // unchanged if no tuples
+        let plain = "SELECT 1";
+        assert_eq!(rewrite_tuple_equality(plain).unwrap(), plain);
         Ok(())
     }
 

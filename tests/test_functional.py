@@ -264,6 +264,19 @@ def test_pg_get_keywords_schema(server):
         assert cur.fetchall() == []
 
 
+def test_tuple_equality_join(server):
+    """Queries using tuple equality should execute successfully."""
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT attrelid FROM pg_catalog.pg_attribute A \n"
+            "LEFT JOIN pg_catalog.pg_attrdef D ON (A.attrelid, A.attnum) = (D.adrelid, D.adnum) \n"
+            "LIMIT 1"
+        )
+        # no error and result schema present
+        cur.fetchall()
+
+
 
 
 
