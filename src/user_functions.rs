@@ -460,6 +460,33 @@ pub fn register_current_schema(ctx: &SessionContext) -> Result<()> {
     Ok(())
 }
 
+pub fn register_current_schemas(ctx: &SessionContext) -> Result<()> {
+    use arrow::array::{ArrayRef, ListBuilder, StringBuilder};
+    use arrow::datatypes::{DataType, Field};
+    use datafusion::logical_expr::{create_udf, ColumnarValue, Volatility};
+    use std::sync::Arc;
+
+    let fun = |_args: &[ColumnarValue]| -> Result<ColumnarValue> {
+        let mut builder = ListBuilder::new(StringBuilder::new());
+        builder.values().append_value("pg_catalog");
+        builder.values().append_value("public");
+        builder.append(true);
+        Ok(ColumnarValue::Array(Arc::new(builder.finish()) as ArrayRef))
+    };
+
+    let list_dt = DataType::List(Arc::new(Field::new("item", DataType::Utf8, true)));
+    let udf = create_udf(
+        "current_schemas",
+        vec![DataType::Boolean],
+        list_dt.clone(),
+        Volatility::Stable,
+        Arc::new(fun),
+    )
+    .with_aliases(["pg_catalog.current_schemas"]);
+    ctx.register_udf(udf);
+    Ok(())
+}
+
 pub fn register_scalar_pg_table_is_visible(ctx: &SessionContext) -> Result<()> {
     use arrow::array::{ArrayRef, BooleanBuilder};
     use arrow::datatypes::DataType;
@@ -2327,6 +2354,28 @@ mod tests {
         let inner = list.value(0);
         let inner = inner.as_any().downcast_ref::<Int64Array>().unwrap();
         assert_eq!(inner.values(), &[1, 2, 3]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn current_schemas_returns_defaults() -> Result<()> {
+        use arrow::array::{ListArray, StringArray};
+        let ctx = SessionContext::new();
+        register_current_schemas(&ctx)?;
+        let batches = ctx
+            .sql("SELECT current_schemas(true) AS v")
+            .await?
+            .collect()
+            .await?;
+        let list = batches[0]
+            .column(0)
+            .as_any()
+            .downcast_ref::<ListArray>()
+            .unwrap();
+        let inner = list.value(0);
+        let inner = inner.as_any().downcast_ref::<StringArray>().unwrap();
+        assert_eq!(inner.value(0), "pg_catalog");
+        assert_eq!(inner.value(1), "public");
         Ok(())
     }
 

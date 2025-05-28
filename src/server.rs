@@ -37,6 +37,7 @@ use crate::session::{execute_sql, ClientOpts};
 use crate::user_functions::{
     register_array_agg,
     register_current_schema,
+    register_current_schemas,
     register_pg_get_array,
     register_oidvector_to_array,
     register_pg_get_function_arguments,
@@ -842,6 +843,7 @@ pub async fn start_server(base_ctx: Arc<SessionContext>, addr: &str,
             register_scalar_regclass_oid(&ctx)?;
             register_scalar_pg_tablespace_location(&ctx)?;
             register_current_schema(&ctx)?;
+            register_current_schemas(&ctx)?;
             register_scalar_format_type(&ctx)?;
             register_scalar_pg_get_expr(&ctx)?;
             register_scalar_pg_get_partkeydef(&ctx)?;

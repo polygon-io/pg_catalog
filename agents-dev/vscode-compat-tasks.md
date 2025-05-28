@@ -11,6 +11,8 @@ postgres=# select * from current_schemas(true);
  {pg_catalog,public}
 (1 row)
 
+Resolved by adding a new `current_schemas` UDF returning `pg_catalog` and `public`.
+
 # Task 62:
 exec_error query: "DISCARD ALL"
 exec_error params: None
