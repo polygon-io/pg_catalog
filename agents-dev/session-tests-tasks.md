@@ -31,3 +31,4 @@ What I need you to do is
 - if the query is marked with success, send the query to the server, and check the response. 
 - Check if the query response matches the data. if the data doesnt match for the query, you can fail the test. 
 
+Remember when matching with the data, null in yaml and and None in python are same. So please be careful about how you match the data !
