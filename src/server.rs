@@ -70,11 +70,15 @@ use crate::user_functions::{
     register_scalar_txid_current,
     register_encode,
     register_upper,
+    register_version_fn,
     register_translate,
 };
 use tokio::net::TcpStream;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
+
+/// PostgreSQL version reported to clients during startup and via `SHOW server_version`.
+pub const SERVER_VERSION: &str = "17.4.0";
 
 pub struct DatafusionBackend {
     ctx: Arc<SessionContext>,
@@ -137,6 +141,11 @@ mod tests {
         assert_eq!(arrow_to_pg_type(&DataType::LargeUtf8), Type::TEXT);
         assert_eq!(arrow_to_pg_type(&DataType::Float32), Type::FLOAT4);
         assert_eq!(arrow_to_pg_type(&DataType::Float64), Type::FLOAT8);
+    }
+
+    #[test]
+    fn test_server_version_constant() {
+        assert_eq!(SERVER_VERSION, "17.4.0");
     }
 }
 
@@ -724,7 +733,7 @@ impl PgWireServerHandlers for DatafusionBackendFactory {
 
     fn startup_handler(&self) -> Arc<Self::StartupHandler> {
         let mut params = DefaultServerParameterProvider::default();
-        params.server_version = "14.13".to_string();
+        params.server_version = SERVER_VERSION.to_string();
         println!("startup handler");
         Arc::new(Md5PasswordAuthStartupHandler::new(
             Arc::new(DummyAuthSource),
@@ -884,6 +893,7 @@ pub async fn start_server(base_ctx: Arc<SessionContext>, addr: &str,
             register_pg_get_ruledef(&ctx)?;
             register_encode(&ctx)?;
             register_upper(&ctx)?;
+            register_version_fn(&ctx)?;
 
             
             let df = ctx.sql("SELECT datname FROM pg_catalog.pg_database where datname='pgtry'").await?;
