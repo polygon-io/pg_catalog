@@ -289,8 +289,17 @@ The only problem with this is the outer references in the subqueries
     SELECT 
         pg_get_expr(adbin, cls.oid) AS col, 
 ```
-this is failing with cls.oid not found. 
+this is failing with cls.oid not found.
 
-Can you move the expression also outside, just like we did for the where clause. 
+Can you move the expression also outside, just like we did for the where clause.
 
 Add tests for this
+
+### Done
+
+Outer table references inside the projected expression caused the generated CTE
+to reference unknown aliases. The rewriter now scans the projection expression
+and replaces any outer reference with its matching inner column from the lifted
+join predicates. This keeps the expression inside the CTE but free of outer
+aliases. A Rust unit test covers the rewrite and a Python functional test runs
+the previously failing query successfully.
