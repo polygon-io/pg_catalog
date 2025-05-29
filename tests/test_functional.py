@@ -431,6 +431,21 @@ def test_tuple_equality_join(server):
         cur.fetchall()
 
 
+def test_rewrite_multiple_correlated_aliases(server):
+    sql = (
+        "SELECT (SELECT adbin FROM pg_catalog.pg_attrdef WHERE adrelid = cls.oid "
+        "AND adnum = attr.attnum) AS default "
+        "FROM pg_catalog.pg_attribute AS attr "
+        "JOIN pg_catalog.pg_type AS typ ON attr.atttypid = typ.oid "
+        "JOIN pg_catalog.pg_class AS cls ON cls.oid = attr.attrelid "
+        "JOIN pg_catalog.pg_namespace AS ns ON ns.oid = cls.relnamespace"
+    )
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+        cur.execute(sql)
+        cur.fetchone()
+
+
 
 
 
