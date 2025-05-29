@@ -3,6 +3,8 @@ exec_error query: "/* with T as (\n  select T.oid as oid\n  from pg_catalog.pg_c
 exec_error params: Some([Some(b"\0\0\0\0\0\0\x08\x98"), Some(b"\0\0\0\0\0\0\0\0")])
 exec_error error: NotImplemented("UNNEST with ordinality is not supported yet")
 
+# Task 71: Gave up
+Attempted to implement UNNEST WITH ORDINALITY support but DataFusion's planner lacks this feature and rewriting the query proved too complex.
 # Task 72
 exec_error query: "   SELECT\n       db.oid as oid, \n       db.datname as name, \n       ta.spcname as spcname, \n       db.datallowconn,\n              16383 as datlastsysoid,\n       has_database_privilege(db.oid, 'CREATE') as cancreate, \n       datdba as owner, \n       db.datistemplate , \n       has_database_privilege(db.datname, 'connect') as canconnect,\n       datistemplate as is_system\n   \n   FROM\n       pg_database db\n       LEFT OUTER JOIN pg_tablespace ta ON db.dattablespace = ta.oid\n      \n   ORDER BY datname;\n   "
 exec_error params: None
