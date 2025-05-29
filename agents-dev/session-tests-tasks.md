@@ -32,3 +32,8 @@ What I need you to do is
 - Check if the query response matches the data. if the data doesnt match for the query, you can fail the test. 
 
 Remember when matching with the data, null in yaml and and None in python are same. So please be careful about how you match the data !
+### Done
+
+Added `tests/test_captures.py` which spawns a server and replays the queries from the first capture YAML file. For successful queries the test sends the SQL with parameters (converting `$n` placeholders) and compares the returned rows with the YAML results, converting raw pgwire values when needed.
+
+The server returns slightly different data than in `captures/dbeaver.yaml` (for example `session_user` and database ACLs), causing the test to fail. After several attempts to normalise the values the mismatch persisted and the task could not be completed successfully.
