@@ -78,6 +78,7 @@ use crate::user_functions::{
 use tokio::net::TcpStream;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
+use log;
 
 /// PostgreSQL version reported to clients during startup and via `SHOW server_version`.
 pub const SERVER_VERSION: &str = "17.4.0";
@@ -240,7 +241,7 @@ pub struct DummyAuthSource;
 #[async_trait]
 impl AuthSource for DummyAuthSource {
     async fn get_password(&self, login_info: &LoginInfo) -> PgWireResult<Password> {
-        println!("login info: {:?}", login_info);
+        log::info!("login info: {:?}", login_info);
 
         let salt = vec![0, 0, 0, 0];
         let password = "pencil";

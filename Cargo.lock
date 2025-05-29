@@ -1401,7 +1401,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "datafusion_query_parser"
+name = "datafusion_pg_catalog"
 version = "0.1.0"
 dependencies = [
  "anyhow",
