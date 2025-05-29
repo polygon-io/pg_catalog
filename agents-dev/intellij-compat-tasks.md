@@ -5,47 +5,38 @@ exec_error error: NotImplemented("UNNEST with ordinality is not supported yet")
 
 # Task 71: Gave up
 Attempted to implement UNNEST WITH ORDINALITY support but DataFusion's planner lacks this feature and rewriting the query proved too complex.
-# Task 72
-exec_error query: "   SELECT\n       db.oid as oid, \n       db.datname as name, \n       ta.spcname as spcname, \n       db.datallowconn,\n              16383 as datlastsysoid,\n       has_database_privilege(db.oid, 'CREATE') as cancreate, \n       datdba as owner, \n       db.datistemplate , \n       has_database_privilege(db.datname, 'connect') as canconnect,\n       datistemplate as is_system\n   \n   FROM\n       pg_database db\n       LEFT OUTER JOIN pg_tablespace ta ON db.dattablespace = ta.oid\n      \n   ORDER BY datname;\n   "
-exec_error params: None
-exec_error error: Collection([Diagnostic(Diagnostic { kind: Error, message: "Invalid function 'has_database_privilege'", span: Some(Span(Location(1,118)..Location(1,140))), notes: [DiagnosticNote { message: "Possible function 'list_any_value'", span: None }], helps: [] }, Plan("Invalid function 'has_database_privilege'.\nDid you mean 'list_any_value'?")), Diagnostic(Diagnostic { kind: Error, message: "Invalid function 'has_database_privilege'", span: Some(Span(Location(1,219)..Location(1,241))), notes: [DiagnosticNote { message: "Possible function 'list_any_value'", span: None }], helps: [] }, Plan("Invalid function 'has_database_privilege'.\nDid you mean 'list_any_value'?"))])
-# Task 72: Done
-Implemented stub for has_database_privilege returning TRUE for compatibility and added tests.
-
-# Task 73:
-exec_error query: "SELECT\n    nsp.oid,\n    nsp.nspname as name,\n    has_schema_privilege(nsp.oid, 'CREATE') as can_create,\n    has_schema_privilege(nsp.oid, 'USAGE') as has_usage,\n    CASE\n    WHEN nsp.nspname like 'pg_%' or nsp.nspname = 'information_schema'\n        THEN true\n    ELSE false END as is_system\nFROM\n    pg_namespace nsp\n    ORDER BY nspname;"
-exec_error params: None
-exec_error error: Collection([Diagnostic(Diagnostic { kind: Error, message: "Invalid function 'has_schema_privilege'", span: Some(Span(Location(1,49)..Location(1,69))), notes: [DiagnosticNote { message: "Possible function 'has_database_privilege'", span: None }], helps: [] }, Plan("Invalid function 'has_schema_privilege'.\nDid you mean 'has_database_privilege'?")), Diagnostic(Diagnostic { kind: Error, message: "Invalid function 'has_schema_privilege'", span: Some(Span(Location(1,104)..Location(1,124))), notes: [DiagnosticNote { message: "Possible function 'has_database_privilege'", span: None }], helps: [] }, Plan("Invalid function 'has_schema_privilege'.\nDid you mean 'has_database_privilege'?"))])
-# Task 73: Done
-Implemented stub for has_schema_privilege returning TRUE for compatibility and added tests.
 
 
-# Task 74:
-exec_error query: "SELECT  rel.oid,\n        (SELECT count(*) FROM pg_trigger WHERE tgrelid=rel.oid AND tgisinternal = FALSE) AS triggercount,\n        (SELECT count(*) FROM pg_trigger WHERE tgrelid=rel.oid AND tgisinternal = FALSE AND tgenabled = 'O') AS has_enable_triggers,\n        (CASE WHEN rel.relkind = 'p' THEN true ELSE false END) AS is_partitioned,\n        nsp.nspname AS schema,\n        nsp.oid AS schemaoid,\n        rel.relname AS name,\n        CASE\n    WHEN nsp.nspname like 'pg_%' or nsp.nspname = 'information_schema'\n        THEN true\n    ELSE false END as is_system\nFROM    pg_class rel\nINNER JOIN pg_namespace nsp ON rel.relnamespace= nsp.oid\n    WHERE rel.relkind IN ('r','t','f','p')\n        AND NOT rel.relispartition\n    ORDER BY nsp.nspname, rel.relname;"
-exec_error params: None
-exec_error error: Diagnostic(Diagnostic { kind: Error, message: "column 'tgrelid' is ambiguous", span: None, notes: [DiagnosticNote { message: "possible column __cte1.tgrelid", span: None }, DiagnosticNote { message: "possible column __cte2.tgrelid", span: None }], helps: [] }, SchemaError(AmbiguousReference { field: Column { relation: None, name: "tgrelid" } }, Some("")))
+# Task 81:
+We have this 
 
-We can fix this with simply adding a table alias in all subqueries (if not exists). The query below just works
+    #[test]
+    fn test_alias_subquery_tables() -> Result<(), Box<dyn std::error::Error>> {
+        let sql = "SELECT (SELECT count(*) FROM pg_trigger WHERE tgrelid = rel.oid) FROM pg_class rel";
+        let out = alias_subquery_tables(sql)?;
+        assert!(out.contains("FROM pg_trigger AS subq0_t"));
+        Ok(())
+    }
 
-pgtry=> SELECT
-  rel.oid,
-  (SELECT count(*) FROM pg_trigger trig WHERE trig.tgrelid = rel.oid AND trig.tgisinternal = FALSE) AS triggercount,
-  (SELECT count(*) FROM pg_trigger trig WHERE trig.tgrelid = rel.oid AND trig.tgisinternal = FALSE AND trig.tgenabled = 'O') AS has_enable_triggers,
-  (CASE WHEN rel.relkind = 'p' THEN true ELSE false END) AS is_partitioned,
-  nsp.nspname AS schema,
-  nsp.oid AS schemaoid,
-  rel.relname AS name,
-  CASE
-    WHEN nsp.nspname like 'pg_%' or nsp.nspname = 'information_schema'
-    THEN true
-    ELSE false END as is_system
-FROM pg_class rel
-INNER JOIN pg_namespace nsp ON rel.relnamespace = nsp.oid
-WHERE rel.relkind IN ('r','t','f','p')
-  AND NOT rel.relispartition
-ORDER BY nsp.nspname, rel.relname;
+this alias_subquery_tables function works. but we need more. we need unbounded columns to turn into bounded columns 
 
-Task 74: Done
-Implemented a rewrite pass that adds aliases to tables inside scalar subqueries.
-This prevents ambiguous column errors when the query is converted to CTE form.
-Added a unit test for the new `alias_subquery_tables` helper.
+eg:
+SELECT (SELECT id FROM pg_trigger WHERE tgrelid = rel.oid) FROM pg_class rel
+turns into something like 
+
+SELECT (SELECT id FROM pg_trigger subq0_t WHERE tgrelid = rel.oid) FROM pg_class rel
+
+but we need to also use that alias in unbounded columns. Eg it should turn it into something like below
+
+SELECT (SELECT count(*) FROM pg_trigger subq0_t WHERE subq0_t.tgrelid = rel.oid) FROM pg_class rel
+
+
+so it gets bounded to a table. otherwise datafusion can't resolve the column and gives ambigitious column error.
+
+So we need to find all unbounded columns in all subqueries and bound them. 
+
+Please write another rewrite function to complement this.
+
+also add a test case for this query
+
+SELECT (SELECT subq0_t.id FROM pg_trigger subq0_t WHERE tgrelid = rel.oid) FROM pg_class rel
