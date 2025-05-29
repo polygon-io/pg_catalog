@@ -217,3 +217,64 @@ exec_error params: Some([Some(b'\0\0\0\0\0\0\x08\x98'), Some(b'\0\0\0\0\0\0\0\0'
 exec_error error: Context("type_coercion", Plan("Failed to coerce arguments to satisfy a call to 'array_has' function: coercion from [Utf8, Int32] to the signature ArraySignature(Array { arguments: [Array, Element], array_coercion: Some(FixedSizedListToList) }) failed"))
 ## # Task 52: Done
 Implemented `rewrite_oidvector_any` to wrap ANY() predicates on oidvector columns with `oidvector_to_array`. Added unit and functional tests verifying pg_opclass joins succeed.
+
+# Task 52:
+exec_error query: "select tab.oid               table_id,\n       tab.relkind           table_kind,\n       ind_stor.relname      index_name,\n       ind_head.indexrelid   index_id,\n       ind_stor.xmin         state_number,\n       ind_head.indisunique  is_unique,\n       ind_head.indisprimary is_primary,\n       /* ind_head.indnullsnotdistinct */false  nulls_not_distinct,\n       pg_catalog.pg_get_expr(ind_head.indpred, ind_head.indrelid) as condition,\n       (select pg_catalog.array_agg(inhparent::bigint order by inhseqno)::varchar from pg_catalog.pg_inherits where ind_stor.oid = inhrelid) as ancestors,\n       ind_stor.reltablespace tablespace_id,\n       opcmethod as access_method_id\nfrom pg_catalog.pg_class tab\n         join pg_catalog.pg_index ind_head\n              on ind_head.indrelid = tab.oid\n         join pg_catalog.pg_class ind_stor\n              on tab.relnamespace = ind_stor.relnamespace and ind_stor.oid = ind_head.indexrelid\n         left join pg_catalog.pg_opclass on pg_opclass.oid = ANY(indclass)\nwhere tab.relnamespace = $1::oid\n        and tab.relkind in ('r', 'm', 'v', 'p')\n        and ind_stor.relkind in ('i', 'I')\n--  and tab.relname in ( :[*f_names] )\nand pg_catalog.age(ind_stor.xmin) <= coalesce(nullif(greatest(pg_catalog.age($2::varchar::xid), -1), -1), 2147483647)"
+exec_error params: Some([Some(b"\0\0\0\0\0\0\x08\x98"), Some(b"\0\0\0\0\0\0\0\0")])
+exec_error error: Context("type_coercion", Plan("Failed to coerce arguments to satisfy a call to 'array_has' function: coercion from [Utf8, Int32] to the signature ArraySignature(Array { arguments: [Array, Element], array_coercion: Some(FixedSizedListToList) }) failed"))
+
+
+# Task 61:
+exec_error query: "SELECT * FROM unnest(current_schemas(true))"
+exec_error error: Diagnostic(Diagnostic { kind: Error, message: "Invalid function 'current_schemas'", span: Some(Span(Location(1,22)..Location(1,37))), notes: [DiagnosticNote { message: "Possible function 'current_schema'", span: None }], helps: [] }, Plan("Invalid function 'current_schemas'.\nDid you mean 'current_schema'?"))
+exec_error params: None
+
+We need to return similar to postgresql. We can return pg_catalog and public in an array.
+
+postgres=# select * from current_schemas(true);
+   current_schemas
+---------------------
+ {pg_catalog,public}
+(1 row)
+
+Resolved by adding a new `current_schemas` UDF returning `pg_catalog` and `public`.
+
+# Task 62:
+exec_error query: "DISCARD ALL"
+exec_error params: None
+exec_error error: NotImplemented("Unsupported SQL statement: DISCARD ALL")
+
+just put a stub as discard all
+
+## Task 62: Done
+Implemented a stub handler for `DISCARD ALL` in the pgwire server.
+The command now returns the `DISCARD ALL` tag without error.
+
+# Task 63:
+
+exec_error query: "SELECT\n    db.oid as oid, \n    db.datname as name, \n    ta.spcname as spcname, \n    db.datallowconn,\n    db.datlastsysoid,\n    has_database_privilege(db.oid, 'CREATE') as cancreate, \n    datdba as owner, \n    db.datistemplate , \n    has_database_privilege(db.datname, 'connect') as canconnect,\n    datistemplate as is_system\n\nFROM\n    pg_database db\n    LEFT OUTER JOIN pg_tablespace ta ON db.dattablespace = ta.oid\n\nORDER BY datname;"
+exec_error params: None
+exec_error error: Collection([Diagnostic(Diagnostic { kind: Error, message: "column 'datlastsysoid' not found in 'db'", span: None, notes: [], helps: [] }, SchemaError(FieldNotFound { field: Column { relation: Some(Bare { table: "db" }), name: "datlastsysoid" }, valid_fields: [Column { relation: Some(Bare { table: "db" }), name: "datacl" }, Column { relation: Some(Bare { table: "db" }), name: "datallowconn" }, Column { relation: Some(Bare { table: "db" }), name: "datcollate" }, Column { relation: Some(Bare { table: "db" }), name: "datcollversion" }, Column { relation: Some(Bare { table: "db" }), name: "datconnlimit" }, Column { relation: Some(Bare { table: "db" }), name: "datctype" }, Column { relation: Some(Bare { table: "db" }), name: "datdba" }, Column { relation: Some(Bare { table: "db" }), name: "datfrozenxid" }, Column { relation: Some(Bare { table: "db" }), name: "dathasloginevt" }, Column { relation: Some(Bare { table: "db" }), name: "daticurules" }, Column { relation: Some(Bare { table: "db" }), name: "datistemplate" }, Column { relation: Some(Bare { table: "db" }), name: "datlocale" }, Column { relation: Some(Bare { table: "db" }), name: "datlocprovider" }, Column { relation: Some(Bare { table: "db" }), name: "datminmxid" }, Column { relation: Some(Bare { table: "db" }), name: "datname" }, Column { relation: Some(Bare { table: "db" }), name: "dattablespace" }, Column { relation: Some(Bare { table: "db" }), name: "encoding" }, Column { relation: Some(Bare { table: "db" }), name: "oid" }, Column { relation: Some(Bare { table: "db" }), name: "xmin" }, Column { relation: Some(Bare { table: "db" }), name: "xmax" }, Column { relation: Some(Bare { table: "db" }), name: "ctid" }, Column { relation: Some(Bare { table: "db" }), name: "tableoid" }, Column { relation: Some(Bare { table: "db" }), name: "cmin" }, Column { relation: Some(Bare { table: "db" }), name: "cmax" }, Column { relation: Some(Bare { table: "ta" }), name: "oid" }, Column { relation: Some(Bare { table: "ta" }), name: "spcacl" }, Column { relation: Some(Bare { table: "ta" }), name: "spcname" }, Column { relation: Some(Bare { table: "ta" }), name: "spcoptions" }, Column { relation: Some(Bare { table: "ta" }), name: "spcowner" }, Column { relation: Some(Bare { table: "ta" }), name: "xmin" }, Column { relation: Some(Bare { table: "ta" }), name: "xmax" }, Column { relation: Some(Bare { table: "ta" }), name: "ctid" }, Column { relation: Some(Bare { table: "ta" }), name: "tableoid" }, Column { relation: Some(Bare { table: "ta" }), name: "cmin" }, Column { relation: Some(Bare { table: "ta" }), name: "cmax" }] }, Some(""))), Diagnostic(Diagnostic { kind: Error, message: "Invalid function 'has_database_privilege'", span: Some(Span(Location(1,123)..Location(1,145))), notes: [DiagnosticNote { message: "Possible function 'generate_series'", span: None }], helps: [] }, Plan("Invalid function 'has_database_privilege'.\nDid you mean 'generate_series'?")), Diagnostic(Diagnostic { kind: Error, message: "Invalid function 'has_database_privilege'", span: Some(Span(Location(1,224)..Location(1,246))), notes: [DiagnosticNote { message: "Possible function 'generate_series'", span: None }], helps: [] }, Plan("Invalid function 'has_database_privilege'.\nDid you mean 'generate_series'?"))])
+
+# Task 101
+exec_error query: "select T.tgrelid as table_id,\n       T.oid as trigger_id,\n       T.xmin as trigger_state_number,\n       T.tgname as trigger_name,\n       T.tgfoid as function_id,\n       pg_catalog.encode(T.tgargs, 'escape') as function_args,\n       T.tgtype as bits,\n       T.tgdeferrable as is_deferrable,\n       T.tginitdeferred as is_init_deferred,\n       T.tgenabled as trigger_fire_mode,\n       T.tgattr as columns,\n       T.tgconstraint != 0 as is_constraint,\n       T.tgoldtable /* null */ as old_table_name,\n       T.tgnewtable /* null */ as new_table_name,\n       pg_catalog.pg_get_triggerdef(T.oid, true) as source_code\nfrom pg_catalog.pg_trigger T\njoin pg_catalog.pg_class TAB on TAB.oid = T.tgrelid and TAB.relnamespace = $1::oid\nwhere true\n  --  and TAB.relname in ( :[*f_names] )\n  and pg_catalog.age(T.xmin) <= coalesce(nullif(greatest(pg_catalog.age($2::varchar::xid), -1), -1), 2147483647)\n  and not T.tgisinternal"
+exec_error params: Some([Some(b"\0\0\0\0\0\0\x08\x98"), Some(b"\0\0\0\0\0\0\0\0")])
+exec_error error: Collection([Diagnostic(Diagnostic { kind: Error, message: "Invalid function 'pg_catalog.encode'", span: Some(Span(Location(1,135)..Location(1,145))), notes: [DiagnosticNote { message: "Possible function 'pg_catalog.age'", span: None }], helps: [] }, Plan("Invalid function 'pg_catalog.encode'.\nDid you mean 'pg_catalog.age'?")), Diagnostic(Diagnostic { kind: Error, message: "Invalid function 'pg_catalog.pg_get_triggerdef'", span: Some(Span(Location(1,437)..Location(1,447))), notes: [DiagnosticNote { message: "Possible function 'pg_catalog.pg_get_indexdef'", span: None }], helps: [] }, Plan("Invalid function 'pg_catalog.pg_get_triggerdef'.\nDid you mean 'pg_catalog.pg_get_indexdef'?"))])
+# Task 101: Done
+Implemented placeholders for `encode` and `pg_get_triggerdef` returning `NULL`. Registered them with the server and added tests.
+# Task 102
+exec_error query: "with A as (\n  select oid as table_id, pg_catalog.upper(relkind) as table_kind\n  from pg_catalog.pg_class\n  where relnamespace = $1::oid\n    and relkind in ('r', 'm', 'v', 'f', 'p')\n--  and relname in ( :[*f_names] )\n)\nselect table_kind,\n       table_id,\n       R.oid as rule_id,\n       pg_catalog.pg_get_ruledef(R.oid, true) as source_text\nfrom A join pg_catalog.pg_rewrite R\n        on A.table_id = R.ev_class\nwhere R.rulename != '_RETURN'::name\n  and pg_catalog.age(R.xmin) <= coalesce(nullif(greatest(pg_catalog.age($2::varchar::xid), -1), -1), 2147483647)"
+exec_error params: Some([Some(b"\0\0\0\0\0\0\x08\x98"), Some(b"\0\0\0\0\0\0\0\x02")])
+exec_error error: Diagnostic(Diagnostic { kind: Error, message: "Invalid function 'pg_catalog.upper'", span: Some(Span(Location(1,36)..Location(1,46))), notes: [DiagnosticNote { message: "Possible function 'pg_catalog.age'", span: None }], helps: [] }, Plan("Invalid function 'pg_catalog.upper'.\nDid you mean 'pg_catalog.age'?"))
+# Task 102: Done
+Added `upper` implementation and a stub for `pg_get_ruledef`. Both are registered and covered by tests.
+
+# Task 103: 
+exec_error query: "select T.tgrelid as table_id,\n       T.oid as trigger_id,\n       T.xmin as trigger_state_number,\n       T.tgname as trigger_name,\n       T.tgfoid as function_id,\n       pg_catalog.encode(T.tgargs, 'escape') as function_args,\n       T.tgtype as bits,\n       T.tgdeferrable as is_deferrable,\n       T.tginitdeferred as is_init_deferred,\n       T.tgenabled as trigger_fire_mode,\n       T.tgattr as columns,\n       T.tgconstraint != 0 as is_constraint,\n       T.tgoldtable /* null */ as old_table_name,\n       T.tgnewtable /* null */ as new_table_name,\n       pg_catalog.pg_get_triggerdef(T.oid, true) as source_code\nfrom pg_catalog.pg_trigger T\njoin pg_catalog.pg_class TAB on TAB.oid = T.tgrelid and TAB.relnamespace = $1::oid\nwhere true\n  --  and TAB.relname in ( :[*f_names] )\n  and pg_catalog.age(T.xmin) <= coalesce(nullif(greatest(pg_catalog.age($2::varchar::xid), -1), -1), 2147483647)\n  and not T.tgisinternal"
+exec_error params: Some([Some(b"\0\0\0\0\0\0\x08\x98"), Some(b"\0\0\0\0\0\0\0\0")])
+exec_error error: Plan("Failed to coerce arguments to satisfy a call to 'pg_catalog.encode' function: coercion from [Utf8, Utf8] to the signature Exact([Binary, Utf8]) failed No function matches the given name and argument types 'pg_catalog.encode(Utf8, Utf8)'. You might need to add explicit type casts.\n\tCandidate functions:\n\tpg_catalog.encode(Binary, Utf8)")
+# Task 103: Done
+The query failed because the `tgargs` column from `pg_trigger` was typed as `varchar`,
+so calling `pg_catalog.encode` expected a `bytea` argument and raised a coercion
+error. The fix maps PostgreSQL `bytea` columns to `Binary` Arrow types. A test
+ensures queries using `encode` on `pg_trigger.tgargs` plan successfully.
