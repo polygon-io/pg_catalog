@@ -125,7 +125,15 @@ def test_current_user(server):
         cur = conn.cursor()
         cur.execute("SELECT current_database(), current_schema(), current_user")
         row = cur.fetchone()
-        assert row == ("pgtry", "public", "dbuser")
+    assert row == ("pgtry", "public", "dbuser")
+
+
+def test_current_schemas(server):
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM unnest(current_schemas(true))")
+        rows = cur.fetchall()
+        assert rows == [("pg_catalog",), ("public",)]
 
 
 def test_show_transaction_isolation_level(server):
@@ -134,6 +142,20 @@ def test_show_transaction_isolation_level(server):
         cur.execute("SHOW TRANSACTION ISOLATION LEVEL")
         row = cur.fetchone()
         assert row == ("read committed",)
+
+
+def test_discard_all(server):
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+        cur.execute("DISCARD ALL")
+        assert cur.statusmessage == "DISCARD ALL"
+
+def test_discard_all_semicolon(server):
+    """DISCARD ALL with a trailing semicolon should be accepted."""
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+        cur.execute("DISCARD ALL;")
+        assert cur.statusmessage == "DISCARD ALL"
 
 def test_system_columns_virtual(server):
     with psycopg.connect(CONN_STR) as conn:
@@ -210,7 +232,15 @@ def test_name_cast_literal(server):
         cur = conn.cursor()
         cur.execute("SELECT '_RETURN'::name")
         row = cur.fetchone()
-        assert row == ("_RETURN",)
+    assert row == ("_RETURN",)
+
+
+def test_server_version_function(server):
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT version()")
+        row = cur.fetchone()
+        assert "17.4.0" in row[0]
 
 
 def test_quote_ident_and_translate(server):

@@ -37,6 +37,7 @@ use crate::session::{execute_sql, ClientOpts};
 use crate::user_functions::{
     register_array_agg,
     register_current_schema,
+    register_current_schemas,
     register_pg_get_array,
     register_oidvector_to_array,
     register_pg_get_function_arguments,
@@ -69,11 +70,15 @@ use crate::user_functions::{
     register_scalar_txid_current,
     register_encode,
     register_upper,
+    register_version_fn,
     register_translate,
 };
 use tokio::net::TcpStream;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
+
+/// PostgreSQL version reported to clients during startup and via `SHOW server_version`.
+pub const SERVER_VERSION: &str = "17.4.0";
 
 pub struct DatafusionBackend {
     ctx: Arc<SessionContext>,
@@ -136,6 +141,11 @@ mod tests {
         assert_eq!(arrow_to_pg_type(&DataType::LargeUtf8), Type::TEXT);
         assert_eq!(arrow_to_pg_type(&DataType::Float32), Type::FLOAT4);
         assert_eq!(arrow_to_pg_type(&DataType::Float64), Type::FLOAT8);
+    }
+
+    #[test]
+    fn test_server_version_constant() {
+        assert_eq!(SERVER_VERSION, "17.4.0");
     }
 }
 
@@ -484,6 +494,8 @@ impl SimpleQueryHandler for DatafusionBackend {
             return Ok(vec![Response::Execution(Tag::new("COMMIT"))]);
         } else if lowercase.starts_with("rollback") {
             return Ok(vec![Response::Execution(Tag::new("ROLLBACK"))]);
+        } else if lowercase.starts_with("discard all") {
+            return Ok(vec![Response::Execution(Tag::new("DISCARD ALL"))]);
         } else if lowercase == "show transaction isolation level" {
             let field_infos = Arc::new(vec![FieldInfo::new(
                 "transaction_isolation".to_string(),
@@ -567,6 +579,8 @@ impl ExtendedQueryHandler for DatafusionBackend {
 
         if sql_trim.is_empty() {
             return Ok(Response::Execution(Tag::new("")));
+        } else if lowercase.starts_with("discard all") {
+            return Ok(Response::Execution(Tag::new("DISCARD ALL")));
         } else if lowercase == "show transaction isolation level" {
             let field_infos = Arc::new(vec![FieldInfo::new(
                 "transaction_isolation".to_string(),
@@ -621,6 +635,8 @@ impl ExtendedQueryHandler for DatafusionBackend {
 
         if sql_trim.is_empty() {
             return Ok(DescribeStatementResponse::new(vec![], vec![]));
+        } else if lowercase.starts_with("discard all") {
+            return Ok(DescribeStatementResponse::new(vec![], vec![]));
         } else if lowercase == "show transaction isolation level" {
             let fields = vec![FieldInfo::new(
                 "transaction_isolation".to_string(),
@@ -664,6 +680,8 @@ impl ExtendedQueryHandler for DatafusionBackend {
         let lowercase = sql_trim.to_lowercase();
 
         if sql_trim.is_empty() {
+            return Ok(DescribePortalResponse::new(vec![]));
+        } else if lowercase.starts_with("discard all") {
             return Ok(DescribePortalResponse::new(vec![]));
         } else if lowercase == "show transaction isolation level" {
             let fields = vec![FieldInfo::new(
@@ -715,7 +733,7 @@ impl PgWireServerHandlers for DatafusionBackendFactory {
 
     fn startup_handler(&self) -> Arc<Self::StartupHandler> {
         let mut params = DefaultServerParameterProvider::default();
-        params.server_version = "14.13".to_string();
+        params.server_version = SERVER_VERSION.to_string();
         println!("startup handler");
         Arc::new(Md5PasswordAuthStartupHandler::new(
             Arc::new(DummyAuthSource),
@@ -842,6 +860,7 @@ pub async fn start_server(base_ctx: Arc<SessionContext>, addr: &str,
             register_scalar_regclass_oid(&ctx)?;
             register_scalar_pg_tablespace_location(&ctx)?;
             register_current_schema(&ctx)?;
+            register_current_schemas(&ctx)?;
             register_scalar_format_type(&ctx)?;
             register_scalar_pg_get_expr(&ctx)?;
             register_scalar_pg_get_partkeydef(&ctx)?;
@@ -874,6 +893,7 @@ pub async fn start_server(base_ctx: Arc<SessionContext>, addr: &str,
             register_pg_get_ruledef(&ctx)?;
             register_encode(&ctx)?;
             register_upper(&ctx)?;
+            register_version_fn(&ctx)?;
 
             
             let df = ctx.sql("SELECT datname FROM pg_catalog.pg_database where datname='pgtry'").await?;
