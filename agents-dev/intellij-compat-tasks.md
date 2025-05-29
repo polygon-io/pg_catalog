@@ -154,3 +154,11 @@ def test_rewrite_multiple_correlated_aliases(server):
 ```
 
 so it probably adds when there are multiple subqueries
+
+### Done
+
+Duplicate join predicates were introduced because outer-only filters still
+contained the correlated comparisons. The rewriter now removes any outer-only
+predicate that matches a lifted correlation before constructing the JOIN. A
+Rust test verifies the join condition only lists each comparison once and the
+Python functional tests run the problematic query successfully.
