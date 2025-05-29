@@ -783,7 +783,10 @@ mod rewriter {
                      *     can safely reference  __cteN.col
                      * --------------------------------------------------------*/
                     // ---- make the first projection look like  expr AS col --------------
-                    if let Some(SelectItem::UnnamedExpr(expr)) = inner_sel.projection.first().cloned() {
+                    if let Some(SelectItem::UnnamedExpr(mut expr)) = inner_sel.projection.first().cloned() {
+                        // rewrite any outer references inside the expression
+                        Self::replace_outer_refs(&mut expr, &info.on_pairs);
+
                         // overwrite the first entry in-place
                         inner_sel.projection[0] = SelectItem::ExprWithAlias {
                             expr,
@@ -864,6 +867,67 @@ mod rewriter {
                 sel.selection = build_and(keep);           // None if empty
             }
 
+        }
+
+        fn replace_outer_refs(expr: &mut Expr, pairs: &[CorrPred]) {
+            match expr {
+                Expr::CompoundIdentifier(path) => {
+                    for p in pairs {
+                        if *path == p.outer {
+                            *expr = Expr::CompoundIdentifier(p.inner.clone());
+                            return;
+                        }
+                    }
+                }
+                Expr::Identifier(id) => {
+                    let current = vec![id.clone()];
+                    for p in pairs {
+                        if current == p.outer {
+                            if p.inner.len() == 1 {
+                                *id = p.inner[0].clone();
+                            } else {
+                                *expr = Expr::CompoundIdentifier(p.inner.clone());
+                            }
+                            return;
+                        }
+                    }
+                }
+                Expr::Function(func) => {
+                    if let FunctionArguments::List(list) = &mut func.args {
+                        for arg in &mut list.args {
+                            match arg {
+                                FunctionArg::Unnamed(FunctionArgExpr::Expr(e))
+                                | FunctionArg::Named { arg: FunctionArgExpr::Expr(e), .. } => {
+                                    Self::replace_outer_refs(e, pairs);
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+                Expr::BinaryOp { left, right, .. } => {
+                    Self::replace_outer_refs(left, pairs);
+                    Self::replace_outer_refs(right, pairs);
+                }
+                Expr::Nested(inner)
+                | Expr::UnaryOp { expr: inner, .. }
+                | Expr::Cast { expr: inner, .. } => {
+                    Self::replace_outer_refs(inner, pairs);
+                }
+                Expr::Case { operand, conditions, else_result, .. } => {
+                    if let Some(op) = operand {
+                        Self::replace_outer_refs(op, pairs);
+                    }
+                    for CaseWhen { condition, result } in conditions {
+                        Self::replace_outer_refs(condition, pairs);
+                        Self::replace_outer_refs(result, pairs);
+                    }
+                    if let Some(er) = else_result {
+                        Self::replace_outer_refs(er, pairs);
+                    }
+                }
+                _ => {}
+            }
         }
              
         fn make_ref(info: &CorrelatedInfo) -> Expr {
@@ -1500,6 +1564,19 @@ mod tests {
         assert!(s.contains("rel.oid = __cte1.tgrelid"));
         assert!(s.contains("rel.oid = __cte2.tgrelid"));
         assert!(!s.contains("tgrelid = rel.oid AND tgrelid"), "duplicate predicate found");
+
+        Ok(())
+    }
+
+    #[test]
+    fn outer_refs_rewritten_in_projection() -> Result<()> {
+        let sql = "SELECT (SELECT pg_get_expr(adbin, cls.oid) FROM pg_attrdef WHERE adrelid = cls.oid AND adnum = attr.attnum) FROM pg_attribute AS attr JOIN pg_class AS cls ON cls.oid = attr.attrelid";
+
+        let out = rewrite(sql)?;
+        let s = out.sql.to_lowercase();
+
+        assert!(s.contains("pg_get_expr(adbin, adrelid)"), "outer reference not rewritten");
+        assert!(s.contains("cls.oid = __cte1.adrelid"), "join predicate missing");
 
         Ok(())
     }
