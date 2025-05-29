@@ -1052,7 +1052,7 @@ pub async fn start_server(
             .with_default_catalog_and_schema(default_catalog, default_schema)
             .with_option_extension(ClientOpts::default());
     
-            session_config.options_mut().catalog.information_schema = true;
+            session_config.options_mut().catalog.information_schema = false;
     
             let ctx = Arc::new(SessionContext::new_with_config_rt(session_config, base_ctx.runtime_env().clone()));
             
