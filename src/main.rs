@@ -53,13 +53,25 @@ async fn run() -> anyhow::Result<()> {
 
     let address = format!("{}:{}", host, port);
 
+    let capture_file = args.iter()
+        .position(|x| x == "--capture")
+        .and_then(|i| args.get(i + 1))
+        .cloned();
+
 
     let (ctx, log) = get_base_session_context(schema_path, default_catalog.clone(), default_schema.clone()).await?;
     // let results = execute_sql(&ctx, sql.as_str()).await?;
     // pretty::print_batches(&results)?;
     // print_execution_log(log.clone());
     
-    start_server(Arc::new(ctx), &address, &default_catalog, &default_schema).await?;
+    start_server(
+        Arc::new(ctx),
+        &address,
+        &default_catalog,
+        &default_schema,
+        capture_file.map(|p| p.into()),
+    )
+    .await?;
 
     Ok(())
 }
