@@ -19,3 +19,15 @@ the given YAML file with its parameters, results and success flag. Errors are
 recorded with details. Tests cover capturing of successful queries, parameterized
 queries and failing queries.
 
+# Task 102
+
+You'll see yaml files on captures/*.yaml
+
+What I need you to do is
+- write a python test name it "tests/test_captures.py"
+- it should first spawn a new server - check the other test file.
+- then open the first yaml file, go through each query. 
+- if the query is marked with success: false skip that query. 
+- if the query is marked with success, send the query to the server, and check the response. 
+- Check if the query response matches the data. if the data doesnt match for the query, you can fail the test. 
+
