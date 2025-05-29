@@ -227,12 +227,12 @@ mod rewriter {
 
     #[derive(Debug)]
     struct CorrelatedInfo {
-        cte_ident   : Ident,
-        subquery    : Box<Query>,
-        on_pairs    : Vec<CorrPred>,  // t1.id = t2.id ...
-        outer_only  : Vec<Expr>,      // t1.flag, t1.x > 10, …
-        orig_alias  : Option<Ident>,
-        outer_alias : Ident,
+        cte_ident    : Ident,
+        subquery     : Box<Query>,
+        on_pairs     : Vec<CorrPred>,  // t1.id = t2.id ...
+        outer_only   : Vec<Expr>,      // t1.flag, t1.x > 10, …
+        orig_alias   : Option<Ident>,
+        outer_aliases: Vec<Ident>,
     }
 
     // ------------------------------------------------------------
@@ -691,7 +691,11 @@ mod rewriter {
             w.as_mut().unwrap()
         }
 
-        fn analyse_scalar(&mut self, sel_item : &SelectItem,  outer_aliases: &[Ident]) -> Option<CorrelatedInfo> {
+        fn analyse_scalar(
+            &mut self,
+            sel_item: &SelectItem,
+            outer_aliases: &[Ident],
+        ) -> Option<CorrelatedInfo> {
             
             let expr = match sel_item {
                 SelectItem::UnnamedExpr(e)
@@ -704,41 +708,25 @@ mod rewriter {
         
             // we only support plain SELECT sub-queries for now
             if let SetExpr::Select(inner_sel) = sub.body.as_ref() {
+                let mut pairs = Vec::<CorrPred>::new();
+                let mut outer_only = Vec::new();
                 if let Some(pred) = &inner_sel.selection {
                     for alias in outer_aliases {
-                        let mut pairs = Vec::<CorrPred>::new();
                         collect_corr_preds(pred, alias, &mut pairs);
-                        let mut outer_only = Vec::new();
                         for c in split_and(pred) {
                             if is_outer_only(&c, alias) {
-                                outer_only.push(c);
+                                outer_only.push(c.clone());
                             }
-                        }
-                        if !pairs.is_empty() || !outer_only.is_empty() {
-                            return Some(CorrelatedInfo {
-                                cte_ident : self.fresh_name(),
-                                subquery  : sub.clone(),
-                                on_pairs  : pairs,
-                                outer_only,
-                                outer_alias: alias.clone(),
-                                orig_alias: match sel_item {
-                                    SelectItem::ExprWithAlias { alias, .. } => Some(alias.clone()),
-                                    _ => None,
-                                },
-                            });
                         }
                     }
                 }
 
                 Some(CorrelatedInfo {
-                    cte_ident : self.fresh_name(),
-                    subquery  : sub.clone(),
-                    on_pairs  : Vec::new(),
-                    outer_only: Vec::new(),
-                    outer_alias: outer_aliases
-                        .first()
-                        .cloned()
-                        .unwrap_or_else(|| Ident::new("_outer")),
+                    cte_ident: self.fresh_name(),
+                    subquery: sub.clone(),
+                    on_pairs: pairs,
+                    outer_only,
+                    outer_aliases: outer_aliases.to_vec(),
                     orig_alias: match sel_item {
                         SelectItem::ExprWithAlias { alias, .. } => Some(alias.clone()),
                         _ => None,
@@ -757,7 +745,7 @@ mod rewriter {
             if let SetExpr::Select(inner_sel) = subq.body.as_mut() {
                     Self::strip_corr_filters(inner_sel,
                                                 &info.on_pairs,
-                                                &info.outer_alias);
+                                                &info.outer_aliases);
 
 
                     /* --------------------------------------------------------
@@ -827,15 +815,18 @@ mod rewriter {
             }
         }
 
-        fn strip_corr_filters(sel: &mut Select,
-                                     pairs: &[CorrPred],
-                                     outer_alias: &Ident) {
+        fn strip_corr_filters(
+            sel: &mut Select,
+            pairs: &[CorrPred],
+            outer_aliases: &[Ident],
+        ) {
             
             if let Some(pred) = &sel.selection {
                 let mut keep: Vec<Expr> = vec![];
                 for conjunct in split_and(pred) {          // helper to de-AND
                     let lifted = pairs.iter().any(|p| is_same_pred(&conjunct, p));
-                    if !lifted && !is_outer_only(&conjunct, outer_alias) {
+                    let outer_only = outer_aliases.iter().any(|a| is_outer_only(&conjunct, a));
+                    if !lifted && !outer_only {
                         if !pairs.iter().any(|p| is_same_pred(&conjunct, p)) {
                             keep.push(conjunct);
                         }
@@ -977,12 +968,6 @@ mod rewriter {
                     }
                 }
             }
-
-            let outer_alias = outer_aliases
-                .first()
-                .cloned()
-                .unwrap_or_else(|| Ident::new("_outer"));
-
 
             // ---------- recurse into every projection expr first ----------
 
@@ -1450,6 +1435,21 @@ mod tests {
             "GROUP BY clause was not injected:\n{rewritten}"
         );
         assert!(rewritten.starts_with("with __cte1"), "CTE missing");
+        Ok(())
+    }
+
+    #[test]
+    fn multiple_correlated_aliases() -> Result<()> {
+        let sql = "SELECT (SELECT pg_attrdef.adbin FROM pg_attrdef WHERE adrelid = cls.oid AND adnum = attr.attnum) AS default \nFROM pg_attribute AS attr\nJOIN pg_type AS typ ON attr.atttypid = typ.oid\nJOIN pg_class AS cls ON cls.oid = attr.attrelid\nJOIN pg_namespace AS ns ON ns.oid = cls.relnamespace";
+
+        let out = rewrite(sql)?;
+        let s = out.sql.clone();
+        println!("rewritten: {}", s);
+
+        assert!(s.contains("cls.oid = __cte1.adrelid"), "cls predicate not in JOIN");
+        assert!(s.contains("attr.attnum = __cte1.adnum"), "attr predicate not in JOIN");
+        assert!(!s.contains("WHERE adrelid = cls.oid"), "predicate left in CTE");
+
         Ok(())
     }
 

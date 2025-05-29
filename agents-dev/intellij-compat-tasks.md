@@ -41,3 +41,12 @@ First I want you to find the reason for this. It can be that if we have multiple
 Add unit tests on rust side
 
 If you can find the issue include this exact query in python functional tests. 
+
+### Done
+
+The scalar to CTE rewriter stopped when it found the first outer table alias.
+As a result only one correlated predicate was lifted and the remaining one
+stayed inside the subquery. The analysis step now collects predicates for all
+outer aliases and passes them to the join builder so every correlation is
+exposed. A new Rust unit test covers the rewrite and a functional Python test
+executes the failing query to ensure it succeeds.
