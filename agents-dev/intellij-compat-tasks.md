@@ -16,3 +16,29 @@ exec_error params: None
 exec_error error: Collection([Diagnostic(Diagnostic { kind: Error, message: "Invalid function 'has_schema_privilege'", span: Some(Span(Location(1,49)..Location(1,69))), notes: [DiagnosticNote { message: "Possible function 'has_database_privilege'", span: None }], helps: [] }, Plan("Invalid function 'has_schema_privilege'.\nDid you mean 'has_database_privilege'?")), Diagnostic(Diagnostic { kind: Error, message: "Invalid function 'has_schema_privilege'", span: Some(Span(Location(1,104)..Location(1,124))), notes: [DiagnosticNote { message: "Possible function 'has_database_privilege'", span: None }], helps: [] }, Plan("Invalid function 'has_schema_privilege'.\nDid you mean 'has_database_privilege'?"))])
 # Task 73: Done
 Implemented stub for has_schema_privilege returning TRUE for compatibility and added tests.
+
+
+# Task 74:
+exec_error query: "SELECT  rel.oid,\n        (SELECT count(*) FROM pg_trigger WHERE tgrelid=rel.oid AND tgisinternal = FALSE) AS triggercount,\n        (SELECT count(*) FROM pg_trigger WHERE tgrelid=rel.oid AND tgisinternal = FALSE AND tgenabled = 'O') AS has_enable_triggers,\n        (CASE WHEN rel.relkind = 'p' THEN true ELSE false END) AS is_partitioned,\n        nsp.nspname AS schema,\n        nsp.oid AS schemaoid,\n        rel.relname AS name,\n        CASE\n    WHEN nsp.nspname like 'pg_%' or nsp.nspname = 'information_schema'\n        THEN true\n    ELSE false END as is_system\nFROM    pg_class rel\nINNER JOIN pg_namespace nsp ON rel.relnamespace= nsp.oid\n    WHERE rel.relkind IN ('r','t','f','p')\n        AND NOT rel.relispartition\n    ORDER BY nsp.nspname, rel.relname;"
+exec_error params: None
+exec_error error: Diagnostic(Diagnostic { kind: Error, message: "column 'tgrelid' is ambiguous", span: None, notes: [DiagnosticNote { message: "possible column __cte1.tgrelid", span: None }, DiagnosticNote { message: "possible column __cte2.tgrelid", span: None }], helps: [] }, SchemaError(AmbiguousReference { field: Column { relation: None, name: "tgrelid" } }, Some("")))
+
+We can fix this with simply adding a table alias in all subqueries (if not exists). The query below just works
+
+pgtry=> SELECT
+  rel.oid,
+  (SELECT count(*) FROM pg_trigger trig WHERE trig.tgrelid = rel.oid AND trig.tgisinternal = FALSE) AS triggercount,
+  (SELECT count(*) FROM pg_trigger trig WHERE trig.tgrelid = rel.oid AND trig.tgisinternal = FALSE AND trig.tgenabled = 'O') AS has_enable_triggers,
+  (CASE WHEN rel.relkind = 'p' THEN true ELSE false END) AS is_partitioned,
+  nsp.nspname AS schema,
+  nsp.oid AS schemaoid,
+  rel.relname AS name,
+  CASE
+    WHEN nsp.nspname like 'pg_%' or nsp.nspname = 'information_schema'
+    THEN true
+    ELSE false END as is_system
+FROM pg_class rel
+INNER JOIN pg_namespace nsp ON rel.relnamespace = nsp.oid
+WHERE rel.relkind IN ('r','t','f','p')
+  AND NOT rel.relispartition
+ORDER BY nsp.nspname, rel.relname;
