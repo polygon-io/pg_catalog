@@ -1412,6 +1412,62 @@ pub fn rewrite_tuple_equality(sql: &str) -> Result<String> {
         .join("; "))
 }
 
+pub fn alias_subquery_tables(sql: &str) -> Result<String> {
+    use sqlparser::ast::{
+        visit_expressions_mut, visit_statements_mut, Expr, Query, TableAlias,
+        TableFactor, Ident,
+    };
+    use sqlparser::dialect::PostgreSqlDialect;
+    use sqlparser::parser::Parser;
+    use std::ops::ControlFlow;
+
+    fn alias_tables(query: &mut Query, counter: &mut usize) {
+        use sqlparser::ast::{SetExpr, TableWithJoins};
+
+        if let SetExpr::Select(select) = query.body.as_mut() {
+            for TableWithJoins { relation, joins } in &mut select.from {
+                alias_table_factor(relation, counter);
+                for j in joins {
+                    alias_table_factor(&mut j.relation, counter);
+                }
+            }
+        }
+    }
+
+    fn alias_table_factor(tf: &mut TableFactor, counter: &mut usize) {
+        if let TableFactor::Table { alias, .. } = tf {
+            if alias.is_none() {
+                *alias = Some(TableAlias {
+                    name: Ident::new(format!("subq{}_t", counter)),
+                    columns: vec![],
+                });
+                *counter += 1;
+            }
+        }
+    }
+
+    let dialect = PostgreSqlDialect {};
+    let mut stmts = Parser::parse_sql(&dialect, sql)
+        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+
+    let mut counter = 0usize;
+    visit_statements_mut(&mut stmts, |stmt| {
+        visit_expressions_mut(stmt, |expr| {
+            if let Expr::Subquery(subq) = expr {
+                alias_tables(subq, &mut counter);
+            }
+            ControlFlow::<()>::Continue(())
+        })?;
+        ControlFlow::Continue(())
+    });
+
+    Ok(stmts
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<_>>()
+        .join("; "))
+}
+
 
 
 #[cfg(test)]
@@ -1792,6 +1848,14 @@ mod tests {
         // unchanged if no tuples
         let plain = "SELECT 1";
         assert_eq!(rewrite_tuple_equality(plain).unwrap(), plain);
+        Ok(())
+    }
+
+    #[test]
+    fn test_alias_subquery_tables() -> Result<(), Box<dyn std::error::Error>> {
+        let sql = "SELECT (SELECT count(*) FROM pg_trigger WHERE tgrelid = rel.oid) FROM pg_class rel";
+        let out = alias_subquery_tables(sql)?;
+        assert!(out.contains("FROM pg_trigger AS subq0_t"));
         Ok(())
     }
 
