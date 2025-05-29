@@ -328,6 +328,18 @@ def test_has_database_privilege(server):
         assert row == (True,)
 
 
+def test_has_schema_privilege(server):
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT pg_catalog.has_schema_privilege(1, 'CREATE')")
+        row = cur.fetchone()
+        assert row == (True,)
+
+        cur.execute("SELECT pg_catalog.has_schema_privilege('public', 'USAGE')")
+        row = cur.fetchone()
+        assert row == (True,)
+
+
 def test_pg_index_access_method(server):
     with psycopg.connect(CONN_STR) as conn:
         cur = conn.cursor()

@@ -472,6 +472,41 @@ pub fn register_has_database_privilege(ctx: &SessionContext) -> Result<()> {
     Ok(())
 }
 
+/// pg_catalog.has_schema_privilege(schema, text) -> bool
+///
+/// Compatibility stub that always returns `true`.
+pub fn register_has_schema_privilege(ctx: &SessionContext) -> Result<()> {
+    use arrow::array::{ArrayRef, BooleanBuilder};
+    use arrow::datatypes::DataType;
+    use datafusion::logical_expr::{create_udf, ColumnarValue, Volatility};
+    use std::sync::Arc;
+
+    let fun = |args: &[ColumnarValue]| -> Result<ColumnarValue> {
+        let len = match args.get(0) {
+            Some(ColumnarValue::Array(a)) => a.len(),
+            _ => 1,
+        };
+        let mut b = BooleanBuilder::with_capacity(len);
+        for _ in 0..len {
+            b.append_value(true);
+        }
+        Ok(ColumnarValue::Array(Arc::new(b.finish()) as ArrayRef))
+    };
+
+    for dt in [DataType::Int32, DataType::Int64, DataType::Utf8] {
+        let udf = create_udf(
+            "pg_catalog.has_schema_privilege",
+            vec![dt.clone(), DataType::Utf8],
+            DataType::Boolean,
+            Volatility::Stable,
+            Arc::new(fun),
+        )
+        .with_aliases(["has_schema_privilege"]);
+        ctx.register_udf(udf);
+    }
+    Ok(())
+}
+
 
 pub fn register_current_schema(ctx: &SessionContext) -> Result<()> {
     // TODO: this always returns public
@@ -2461,6 +2496,37 @@ mod tests {
 
         let batches = ctx
             .sql("SELECT pg_catalog.has_database_privilege('pgtry', 'CONNECT')")
+            .await?
+            .collect()
+            .await?;
+        let arr = batches[0]
+            .column(0)
+            .as_any()
+            .downcast_ref::<BooleanArray>()
+            .unwrap();
+        assert!(arr.value(0));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn has_schema_privilege_always_true() -> Result<()> {
+        use arrow::array::BooleanArray;
+        let ctx = SessionContext::new();
+        register_has_schema_privilege(&ctx)?;
+        let batches = ctx
+            .sql("SELECT pg_catalog.has_schema_privilege(1, 'CREATE')")
+            .await?
+            .collect()
+            .await?;
+        let arr = batches[0]
+            .column(0)
+            .as_any()
+            .downcast_ref::<BooleanArray>()
+            .unwrap();
+        assert!(arr.value(0));
+
+        let batches = ctx
+            .sql("SELECT pg_catalog.has_schema_privilege('public', 'USAGE')")
             .await?
             .collect()
             .await?;
