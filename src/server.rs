@@ -2,7 +2,7 @@
 // Implements pgwire handlers and registers compatibility UDFs so external clients can connect.
 // Exists to test the pg_catalog emulation over real network connections.
 
-use std::sync::{Arc};
+use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use futures::{stream};
@@ -19,7 +19,12 @@ use pgwire::api::{ClientInfo, PgWireServerHandlers, Type};
 use pgwire::error::{PgWireError, PgWireResult};
 use pgwire::messages::data::DataRow;
 use pgwire::tokio::process_socket;
-use tokio::net::{TcpListener};
+use tokio::net::TcpListener;
+use serde::{Serialize, Deserialize};
+use bytes::Bytes;
+use std::collections::BTreeMap;
+use std::fs::File;
+use std::path::PathBuf;
 
 use arrow::array::{BooleanArray, Int32Array, Int64Array, LargeStringArray, ListArray, StringArray, StringViewArray};
 use arrow::record_batch::RecordBatch;
@@ -83,9 +88,39 @@ use log;
 /// PostgreSQL version reported to clients during startup and via `SHOW server_version`.
 pub const SERVER_VERSION: &str = "17.4.0";
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+struct CapturedQuery {
+    query: String,
+    parameters: Vec<Option<serde_json::Value>>,
+    result: Vec<BTreeMap<String, serde_json::Value>>,
+    success: bool,
+    error_details: Option<String>,
+}
+
+#[derive(Clone)]
+struct CaptureStore {
+    path: PathBuf,
+    entries: Arc<Mutex<Vec<CapturedQuery>>>,
+}
+
+impl CaptureStore {
+    fn new(path: PathBuf) -> Self {
+        Self { path, entries: Arc::new(Mutex::new(Vec::new())) }
+    }
+
+    fn append(&self, entry: CapturedQuery) {
+        let mut vec = self.entries.lock().unwrap();
+        vec.push(entry);
+        if let Ok(file) = File::create(&self.path) {
+            let _ = serde_yaml::to_writer(file, &*vec);
+        }
+    }
+}
+
 pub struct DatafusionBackend {
     ctx: Arc<SessionContext>,
     query_parser: Arc<NoopQueryParser>,
+    capture: Option<CaptureStore>,
 }
 
 #[cfg(test)]
@@ -154,10 +189,11 @@ mod tests {
 
 
 impl DatafusionBackend {
-    pub fn new(ctx: Arc<SessionContext>) -> Self {
+    pub fn new(ctx: Arc<SessionContext>, capture: Option<CaptureStore>) -> Self {
         Self {
             ctx,
             query_parser: Arc::new(NoopQueryParser::new()),
+            capture,
         }
     }
 
@@ -300,6 +336,111 @@ fn batch_to_field_info(batch: &RecordBatch, format: &Format) -> PgWireResult<Vec
             format.format_for(idx),
         )
     }).collect())
+}
+
+fn batches_to_json_rows(batches: &[RecordBatch]) -> Vec<BTreeMap<String, serde_json::Value>> {
+    let mut rows = Vec::new();
+    for batch in batches {
+        let schema = batch.schema();
+        for row_idx in 0..batch.num_rows() {
+            let mut map = BTreeMap::new();
+            for (col_idx, field) in schema.fields().iter().enumerate() {
+                let col = batch.column(col_idx);
+                let val = match field.data_type() {
+                    DataType::Utf8 => {
+                        let arr = col.as_any().downcast_ref::<StringArray>().unwrap();
+                        if arr.is_null(row_idx) {
+                            serde_json::Value::Null
+                        } else {
+                            serde_json::Value::String(arr.value(row_idx).to_string())
+                        }
+                    }
+                    DataType::Utf8View => {
+                        let arr = col.as_any().downcast_ref::<StringViewArray>().unwrap();
+                        if arr.is_null(row_idx) {
+                            serde_json::Value::Null
+                        } else {
+                            serde_json::Value::String(arr.value(row_idx).to_string())
+                        }
+                    }
+                    DataType::LargeUtf8 => {
+                        let arr = col.as_any().downcast_ref::<LargeStringArray>().unwrap();
+                        if arr.is_null(row_idx) {
+                            serde_json::Value::Null
+                        } else {
+                            serde_json::Value::String(arr.value(row_idx).to_string())
+                        }
+                    }
+                    DataType::Int32 => {
+                        let arr = col.as_any().downcast_ref::<Int32Array>().unwrap();
+                        if arr.is_null(row_idx) {
+                            serde_json::Value::Null
+                        } else {
+                            serde_json::json!(arr.value(row_idx))
+                        }
+                    }
+                    DataType::Int64 => {
+                        let arr = col.as_any().downcast_ref::<Int64Array>().unwrap();
+                        if arr.is_null(row_idx) {
+                            serde_json::Value::Null
+                        } else {
+                            serde_json::json!(arr.value(row_idx))
+                        }
+                    }
+                    DataType::Boolean => {
+                        let arr = col.as_any().downcast_ref::<BooleanArray>().unwrap();
+                        if arr.is_null(row_idx) {
+                            serde_json::Value::Null
+                        } else {
+                            serde_json::json!(arr.value(row_idx))
+                        }
+                    }
+                    DataType::Float32 => {
+                        let arr = col.as_any().downcast_ref::<Float32Array>().unwrap();
+                        if arr.is_null(row_idx) {
+                            serde_json::Value::Null
+                        } else {
+                            serde_json::json!(arr.value(row_idx))
+                        }
+                    }
+                    DataType::Float64 => {
+                        let arr = col.as_any().downcast_ref::<Float64Array>().unwrap();
+                        if arr.is_null(row_idx) {
+                            serde_json::Value::Null
+                        } else {
+                            serde_json::json!(arr.value(row_idx))
+                        }
+                    }
+                    _ => serde_json::Value::Null,
+                };
+                map.insert(field.name().clone(), val);
+            }
+            rows.push(map);
+        }
+    }
+    rows
+}
+
+fn decode_parameters(params: &[Option<Bytes>], types: &[Type]) -> Vec<Option<serde_json::Value>> {
+    params
+        .iter()
+        .zip(types.iter())
+        .map(|(param, typ)| match (param, typ) {
+            (None, _) => None,
+            (Some(bytes), &Type::INT2) => Some(serde_json::json!(i16::from_be_bytes(bytes[..].try_into().unwrap()))),
+            (Some(bytes), &Type::INT4) => Some(serde_json::json!(i32::from_be_bytes(bytes[..].try_into().unwrap()))),
+            (Some(bytes), &Type::INT8) => Some(serde_json::json!(i64::from_be_bytes(bytes[..].try_into().unwrap()))),
+            (Some(bytes), &Type::OID) => Some(serde_json::json!(u32::from_be_bytes(bytes[..].try_into().unwrap()))),
+            (Some(bytes), &Type::VARCHAR)
+            | (Some(bytes), &Type::TEXT)
+            | (Some(bytes), &Type::BPCHAR)
+            | (Some(bytes), &Type::NAME)
+            | (Some(bytes), &Type::UNKNOWN) => {
+                Some(serde_json::Value::String(String::from_utf8(bytes.to_vec()).unwrap()))
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 fn batch_to_row_stream(batch: &RecordBatch, schema: Arc<Vec<FieldInfo>>) -> impl Stream<Item = PgWireResult<DataRow>> {
@@ -527,7 +668,23 @@ impl SimpleQueryHandler for DatafusionBackend {
         let _ = self.register_current_database(client);
         let _ = self.register_session_user(client);
         let _ = self.register_current_user(client);
-        let (results, schema) = execute_sql(&self.ctx, query, None, None).await.map_err(|e| PgWireError::ApiError(Box::new(e)))?;
+
+        let exec_res = execute_sql(&self.ctx, query, None, None).await;
+        let (results, schema) = match exec_res {
+            Ok(v) => v,
+            Err(e) => {
+                if let Some(c) = &self.capture {
+                    c.append(CapturedQuery {
+                        query: query.to_string(),
+                        parameters: Vec::new(),
+                        result: Vec::new(),
+                        success: false,
+                        error_details: Some(e.to_string()),
+                    });
+                }
+                return Err(PgWireError::ApiError(Box::new(e)));
+            }
+        };
 
         let mut responses = Vec::new();
 
@@ -541,15 +698,33 @@ impl SimpleQueryHandler for DatafusionBackend {
 
             responses.push(Response::Query(QueryResponse::new(field_infos, rows)));
         } else {
-            for batch in results {
-                let schema = Arc::new(batch_to_field_info(&batch, &Format::UnifiedText)?);
-                let rows = batch_to_row_stream(&batch, schema.clone());
+            for batch in &results {
+                let schema = Arc::new(batch_to_field_info(batch, &Format::UnifiedText)?);
+                let rows = batch_to_row_stream(batch, schema.clone());
                 responses.push(Response::Query(QueryResponse::new(schema, rows)));
             }
         }
 
         if lowercase.starts_with("set") {
+            if let Some(c) = &self.capture {
+                c.append(CapturedQuery {
+                    query: query.to_string(),
+                    parameters: Vec::new(),
+                    result: batches_to_json_rows(&results),
+                    success: true,
+                    error_details: None,
+                });
+            }
             return Ok(vec![Response::Execution(Tag::new("SET"))]);
+        }
+        if let Some(c) = &self.capture {
+            c.append(CapturedQuery {
+                query: query.to_string(),
+                parameters: Vec::new(),
+                result: batches_to_json_rows(&results),
+                success: true,
+                error_details: None,
+            });
         }
 
         Ok(responses)
@@ -605,10 +780,28 @@ impl ExtendedQueryHandler for DatafusionBackend {
         let _ = self.register_session_user(client);
         let _ = self.register_current_user(client);
 
-        let (results, schema) = execute_sql(&self.ctx, portal.statement.statement.as_str(),
-                                  Some(portal.parameters.clone()),
-                                  Some(portal.statement.parameter_types.clone()),
-        ).await.map_err(|e| PgWireError::ApiError(Box::new(e)))?;
+        let exec_res = execute_sql(
+            &self.ctx,
+            portal.statement.statement.as_str(),
+            Some(portal.parameters.clone()),
+            Some(portal.statement.parameter_types.clone()),
+        ).await;
+        let (results, schema) = match exec_res {
+            Ok(v) => v,
+            Err(e) => {
+                if let Some(c) = &self.capture {
+                    let params = decode_parameters(&portal.parameters, &portal.statement.parameter_types);
+                    c.append(CapturedQuery {
+                        query: portal.statement.statement.clone(),
+                        parameters: params,
+                        result: Vec::new(),
+                        success: false,
+                        error_details: Some(e.to_string()),
+                    });
+                }
+                return Err(PgWireError::ApiError(Box::new(e)));
+            }
+        };
 
 
         let batch = if results.is_empty() {
@@ -619,7 +812,16 @@ impl ExtendedQueryHandler for DatafusionBackend {
 
         let field_infos = Arc::new(batch_to_field_info(&batch, &portal.result_column_format)?);
         let rows = batch_to_row_stream(&batch, field_infos.clone());
-        // println!("return from do_query {:?}", field_infos);
+        if let Some(c) = &self.capture {
+            let params = decode_parameters(&portal.parameters, &portal.statement.parameter_types);
+            c.append(CapturedQuery {
+                query: portal.statement.statement.clone(),
+                parameters: params,
+                result: batches_to_json_rows(&results),
+                success: true,
+                error_details: None,
+            });
+        }
         Ok(Response::Query(QueryResponse::new(field_infos, rows)))
     }
 
@@ -829,11 +1031,18 @@ async fn ensure_pg_catalog_rows(ctx: &SessionContext) -> DFResult<()> {
     Ok(())
 }
 
-pub async fn start_server(base_ctx: Arc<SessionContext>, addr: &str, 
-    default_catalog:&str, default_schema: &str) -> anyhow::Result<()> {
+pub async fn start_server(
+    base_ctx: Arc<SessionContext>,
+    addr: &str,
+    default_catalog: &str,
+    default_schema: &str,
+    capture: Option<std::path::PathBuf>,
+) -> anyhow::Result<()> {
 
     let listener = TcpListener::bind(addr).await?;
     println!("Listening on {}", addr);
+
+    let capture_store = capture.map(CaptureStore::new);
 
     loop {
         let (socket, _) = listener.accept().await?;
@@ -944,7 +1153,10 @@ pub async fn start_server(base_ctx: Arc<SessionContext>, addr: &str,
 
 
             let factory = Arc::new(DatafusionBackendFactory {
-                handler: Arc::new(DatafusionBackend::new(Arc::clone(&ctx))),
+                handler: Arc::new(DatafusionBackend::new(
+                    Arc::clone(&ctx),
+                    capture_store.clone(),
+                )),
             });
             let factory = factory.clone();
 
