@@ -316,6 +316,18 @@ def test_pg_get_expr_int64(server):
         assert row == ("hello",)
 
 
+def test_has_database_privilege(server):
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT pg_catalog.has_database_privilege(1, 'CREATE')")
+        row = cur.fetchone()
+        assert row == (True,)
+
+        cur.execute("SELECT pg_catalog.has_database_privilege('pgtry', 'CONNECT')")
+        row = cur.fetchone()
+        assert row == (True,)
+
+
 def test_pg_index_access_method(server):
     with psycopg.connect(CONN_STR) as conn:
         cur = conn.cursor()
