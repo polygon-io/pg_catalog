@@ -445,6 +445,27 @@ def test_rewrite_multiple_correlated_aliases(server):
         cur.execute(sql)
         cur.fetchone()
 
+def test_rewrite_trigger_counts(server):
+    sql = (
+        "SELECT rel.oid, "
+        "(SELECT count(*) FROM pg_trigger WHERE tgrelid=rel.oid AND tgisinternal = FALSE) AS triggercount, "
+        "(SELECT count(*) FROM pg_trigger WHERE tgrelid=rel.oid AND tgisinternal = FALSE AND tgenabled = 'O') AS has_enable_triggers, "
+        "(CASE WHEN rel.relkind = 'p' THEN true ELSE false END) AS is_partitioned, "
+        "nsp.nspname AS schema, "
+        "nsp.oid AS schemaoid, "
+        "rel.relname AS name, "
+        "CASE WHEN nsp.nspname like 'pg_%' or nsp.nspname = 'information_schema' THEN true ELSE false END as is_system "
+        "FROM pg_class rel "
+        "INNER JOIN pg_namespace nsp ON rel.relnamespace= nsp.oid "
+        "WHERE rel.relkind IN ('r','t','f','p') "
+        "AND NOT rel.relispartition "
+        "ORDER BY nsp.nspname, rel.relname"
+    )
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+        with pytest.raises(Exception):
+            cur.execute(sql)
+
 
 
 

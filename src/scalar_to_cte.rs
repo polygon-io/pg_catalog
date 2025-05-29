@@ -296,7 +296,7 @@ mod rewriter {
     }
 
     /// One correlated comparison: `t1.x <> t2.y`
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     struct CorrPred {
         outer: Vec<Ident>,
         inner: Vec<Ident>,
@@ -320,21 +320,27 @@ mod rewriter {
             match (l.first(), r.first()) {
                 //  oid  = ANY(pol.polroles)
                 (Some(a), Some(b)) if b == outer_alias && a != outer_alias => {
-                    out.push(CorrPred {
+                    let cand = CorrPred {
                         outer: r,
                         inner: l,
                         op:    BinaryOperator::Eq,   // keep the operator
                         is_any: true
-                    });
+                    };
+                    if !out.contains(&cand) {
+                        out.push(cand);
+                    }
                 }
                 //  ANY(pol.xxx) = oid   (unlikely, but symmetrical)
                 (Some(a), Some(b)) if a == outer_alias && b != outer_alias => {
-                    out.push(CorrPred {
+                    let cand = CorrPred {
                         outer: l,
                         inner: r,
                         op:    BinaryOperator::Eq,
                         is_any: true
-                    });
+                    };
+                    if !out.contains(&cand) {
+                        out.push(cand);
+                    }
                 }
                 _ => {}
             }
@@ -359,10 +365,16 @@ mod rewriter {
                 let (l, r) = (as_path(left), as_path(right));
                 match (l.first(), r.first()) {
                     (Some(a), Some(b)) if a == outer_alias && b != outer_alias => {
-                        out.push(CorrPred { outer: l, inner: r, op: op.clone(), is_any: false });
+                        let cand = CorrPred { outer: l, inner: r, op: op.clone(), is_any: false };
+                        if !out.contains(&cand) {
+                            out.push(cand);
+                        }
                     }
                     (Some(a), Some(b)) if b == outer_alias && a != outer_alias => {
-                            out.push(CorrPred { outer: r, inner: l, op: op.clone(), is_any: false });
+                            let cand = CorrPred { outer: r, inner: l, op: op.clone(), is_any: false };
+                            if !out.contains(&cand) {
+                                out.push(cand);
+                            }
                     }
                     _ => {}
                 }
@@ -721,6 +733,23 @@ mod rewriter {
                     }
                 }
 
+                // remove duplicate predicates
+                let mut pair_unique = Vec::new();
+                for p in pairs.into_iter() {
+                    if !pair_unique.contains(&p) {
+                        pair_unique.push(p);
+                    }
+                }
+                let pairs = pair_unique;
+
+                let mut unique = Vec::new();
+                for expr in outer_only.into_iter() {
+                    if !unique.iter().any(|e: &Expr| e.to_string() == expr.to_string()) {
+                        unique.push(expr);
+                    }
+                }
+                let outer_only = unique;
+
                 Some(CorrelatedInfo {
                     cte_ident: self.fresh_name(),
                     subquery: sub.clone(),
@@ -900,8 +929,15 @@ mod rewriter {
     
         // -------------------------------------------------------------
         // 2. tack on the “outer-only” predicates (t1.flag, …)
+        //     skip any that duplicate a correlated comparison
         // -------------------------------------------------------------
+        let mut outer_only_filtered: Vec<Expr> = Vec::new();
         for pred in outer_only {
+            if !pairs.iter().any(|p| is_same_pred(pred, p)) {
+                outer_only_filtered.push(pred.clone());
+            }
+        }
+        for pred in &outer_only_filtered {
             on = Some(match on {
                 None        => pred.clone(),
                 Some(cur)   => Expr::BinaryOp {
@@ -1449,6 +1485,21 @@ mod tests {
         assert!(s.contains("cls.oid = __cte1.adrelid"), "cls predicate not in JOIN");
         assert!(s.contains("attr.attnum = __cte1.adnum"), "attr predicate not in JOIN");
         assert!(!s.contains("WHERE adrelid = cls.oid"), "predicate left in CTE");
+
+        Ok(())
+    }
+
+    #[test]
+    fn trigger_counts_no_dup() -> Result<()> {
+        let sql = "SELECT  rel.oid,\n        (SELECT count(*) FROM pg_trigger WHERE tgrelid=rel.oid AND tgisinternal = FALSE) AS triggercount,\n        (SELECT count(*) FROM pg_trigger WHERE tgrelid=rel.oid AND tgisinternal = FALSE AND tgenabled = 'O') AS has_enable_triggers,\n        (CASE WHEN rel.relkind = 'p' THEN true ELSE false END) AS is_partitioned,\n        nsp.nspname AS schema,\n        nsp.oid AS schemaoid,\n        rel.relname AS name,\n        CASE WHEN nsp.nspname like 'pg_%' or nsp.nspname = 'information_schema' THEN true ELSE false END as is_system\nFROM    pg_class rel\nINNER JOIN pg_namespace nsp ON rel.relnamespace= nsp.oid\n    WHERE rel.relkind IN ('r','t','f','p')\n        AND NOT rel.relispartition\n    ORDER BY nsp.nspname, rel.relname";
+
+        let out = rewrite(sql)?;
+        let s = out.sql.clone();
+        assert!(s.contains("LEFT OUTER JOIN __cte1"));
+        assert!(s.contains("LEFT OUTER JOIN __cte2"));
+        assert!(s.contains("rel.oid = __cte1.tgrelid"));
+        assert!(s.contains("rel.oid = __cte2.tgrelid"));
+        assert!(!s.contains("tgrelid = rel.oid AND tgrelid"), "duplicate predicate found");
 
         Ok(())
     }
