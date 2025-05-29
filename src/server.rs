@@ -784,8 +784,8 @@ async fn ensure_pg_catalog_rows(ctx: &SessionContext) -> DFResult<()> {
         == 0
     {
         ctx.sql("INSERT INTO pg_catalog.pg_class
-                 (oid, relname, relnamespace, relkind, reltuples, reltype)
-                 VALUES (50010,'users',2200,'r',0,50011)")
+                 (oid, relname, relnamespace, relkind, reltuples, reltype, relispartition)
+                 VALUES (50010,'users',2200,'r',0,50011, false)")
             .await?
             .collect()
             .await?;
