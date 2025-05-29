@@ -125,7 +125,15 @@ def test_current_user(server):
         cur = conn.cursor()
         cur.execute("SELECT current_database(), current_schema(), current_user")
         row = cur.fetchone()
-        assert row == ("pgtry", "public", "dbuser")
+    assert row == ("pgtry", "public", "dbuser")
+
+
+def test_current_schemas(server):
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM unnest(current_schemas(true))")
+        rows = cur.fetchall()
+        assert rows == [("pg_catalog",), ("public",)]
 
 
 def test_show_transaction_isolation_level(server):
