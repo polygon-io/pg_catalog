@@ -132,3 +132,6 @@ WHERE
 ORDER BY attnum;
 ```
 
+
+## Done
+Added a test for this query to ensure the scalar subquery in the CASE statement is rewritten into a CTE even when other EXISTS subqueries are present. The existing rewrite logic already produces the expected result.
