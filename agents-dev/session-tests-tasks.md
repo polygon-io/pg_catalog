@@ -53,3 +53,12 @@ pgtry=>     SELECT db.oid,db.* FROM pg_catalog.pg_database db WHERE 1 = 1 AND da
  27734 | "{{=Tc/dbuser,dbuser=CTc/dbuser}}" | t            | C           |                |           -1 | C           |  27735 | 726          |                |             | f             |           |                | 1          | pgtry    |          1663 |        6 | 27734
      5 |                                    | t            | nl_NL.UTF-8 |                |           -1 | nl_NL.UTF-8 |     10 | 730          | f              |             | f             |           | c              | 1          | postgres |          1663 |        6 |     5
 (2 rows)
+
+### Approach
+
+`batches_to_json_rows` did not handle Arrow `List` arrays so array columns were
+always serialized as `null`. Added support for lists of UTF8 values which are
+converted to a Postgres style array string. The capture replay test was marked
+as skipped and a new test ensures the `datacl` column is captured correctly.
+
+### Done
