@@ -51,6 +51,7 @@
 use sqlparser::ast::*;
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
+use sqlparser::ast::ObjectNamePart;
 
 use datafusion::error::{DataFusionError, Result};
 use std::collections::HashSet;
@@ -673,6 +674,37 @@ mod rewriter {
             Ident::new(format!("__cte{}", self.cte_counter))
         }
 
+        fn qualify_pg_catalog_tables(query: &mut Query) {
+            fn qualify_factor(tf: &mut TableFactor) {
+                match tf {
+                    TableFactor::Table { name, .. } => {
+                        if name.0.len() == 1 {
+                            name.0.insert(0, ObjectNamePart::Identifier(Ident::new("pg_catalog")));
+                        }
+                    }
+                    TableFactor::Derived { subquery, .. } => {
+                        ScalarToCte::qualify_pg_catalog_tables(subquery);
+                    }
+                    TableFactor::NestedJoin { table_with_joins, .. } => {
+                        qualify_factor(&mut table_with_joins.relation);
+                        for j in &mut table_with_joins.joins {
+                            qualify_factor(&mut j.relation);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            if let SetExpr::Select(sel) = query.body.as_mut() {
+                for twj in &mut sel.from {
+                    qualify_factor(&mut twj.relation);
+                    for j in &mut twj.joins {
+                        qualify_factor(&mut j.relation);
+                    }
+                }
+            }
+        }
+
         fn blank_with() -> With {
             let stmt = super::parse_sql("WITH x AS (SELECT 1) SELECT 1").unwrap();
             match stmt {
@@ -825,10 +857,13 @@ mod rewriter {
                     self.inject_group_by(inner_sel);
 
             }
-        
+
+            // prefix unqualified tables inside the CTE with pg_catalog
+            Self::qualify_pg_catalog_tables(&mut subq);
+
             // ★ use *subq* we just cleaned, not the original
             w.cte_tables
-                .push(Self::make_cte(&info.cte_ident, Box::new(subq)));  
+                .push(Self::make_cte(&info.cte_ident, Box::new(subq)));
         }
 
         fn add_join(&mut self, sel: &mut Select, info: &CorrelatedInfo) {
@@ -1617,6 +1652,15 @@ mod tests {
         assert!(lowered.contains("attr.attnum = __cte1.adnum"), "attr predicate missing");
         assert!(lowered.contains("case when atthasdef then __cte1.col"), "scalar not replaced inside case");
 
+        Ok(())
+    }
+
+    #[test]
+    fn qualify_unqualified_inner_table() -> Result<()> {
+        let sql = "SELECT (SELECT pg_attrdef.adbin FROM pg_attrdef WHERE adrelid = cls.oid AND adnum = attr.attnum) FROM pg_attribute AS attr JOIN pg_class AS cls ON cls.oid = attr.attrelid";
+        let out = rewrite(sql)?;
+        let lowered = out.sql.to_lowercase();
+        assert!(lowered.contains("from pg_catalog.pg_attrdef"), "inner table not qualified");
         Ok(())
     }
 
