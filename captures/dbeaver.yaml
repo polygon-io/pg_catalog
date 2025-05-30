@@ -19,7 +19,7 @@
   parameters:
   - pgtry
   result:
-  - datacl: null
+  - datacl: '{{=Tc/dbuser,dbuser=CTc/dbuser}}'
     datallowconn: true
     datcollate: C
     datcollversion: null
@@ -92,12 +92,12 @@
   parameters: []
   result:
   - description: null
-    nspacl: null
+    nspacl: '{\"[''abadur=UC/abadur'', ''=U/abadur'']\"}'
     nspname: information_schema
     nspowner: 10
     oid: 12782
   - description: null
-    nspacl: null
+    nspacl: '{\"[''abadur=UC/abadur'', ''=U/abadur'']\"}'
     nspname: pg_catalog
     nspowner: 10
     oid: 11
@@ -107,7 +107,7 @@
     nspowner: 10
     oid: 99
   - description: null
-    nspacl: null
+    nspacl: '{\"[''pg_database_owner=UC/pg_database_owner'', ''=U/pg_database_owner'']\"}'
     nspname: public
     nspowner: 6171
     oid: 2200
