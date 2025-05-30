@@ -169,3 +169,6 @@ WHERE
 
 ORDER BY attnum;
 ```
+
+### Done 92
+Implemented handling for `SHOW` commands when `information_schema` is disabled by intercepting the commands in `server.rs` and returning values from `ClientOpts`. Added a regression test ensuring scalar subqueries inside `CASE` expressions are rewritten correctly. All tests pass.
