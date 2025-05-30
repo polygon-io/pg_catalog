@@ -411,6 +411,24 @@ fn batches_to_json_rows(batches: &[RecordBatch]) -> Vec<BTreeMap<String, serde_j
                             serde_json::json!(arr.value(row_idx))
                         }
                     }
+                    DataType::List(inner) if inner.data_type() == &DataType::Utf8 => {
+                        let list = col.as_any().downcast_ref::<ListArray>().unwrap();
+                        if list.is_null(row_idx) {
+                            serde_json::Value::Null
+                        } else {
+                            let arr = list.value(row_idx);
+                            let sa = arr.as_any().downcast_ref::<StringArray>().unwrap();
+                            let mut items = Vec::with_capacity(sa.len());
+                            for i in 0..sa.len() {
+                                if sa.is_null(i) {
+                                    items.push("NULL".to_string());
+                                } else {
+                                    items.push(sa.value(i).replace('"', r#"\""#));
+                                }
+                            }
+                            serde_json::Value::String(format!("{{{}}}", items.join(",")))
+                        }
+                    }
                     _ => serde_json::Value::Null,
                 };
                 map.insert(field.name().clone(), val);
