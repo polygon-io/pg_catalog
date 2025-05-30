@@ -37,3 +37,19 @@ Remember when matching with the data, null in yaml and and None in python are sa
 Added `tests/test_captures.py` which spawns a server and replays the queries from the first capture YAML file. For successful queries the test sends the SQL with parameters (converting `$n` placeholders) and compares the returned rows with the YAML results, converting raw pgwire values when needed.
 
 The server returns slightly different data than in `captures/dbeaver.yaml` (for example `session_user` and database ACLs), causing the test to fail. After several attempts to normalise the values the mismatch persisted and the task could not be completed successfully.
+
+
+# Task 103:
+
+When I run this query I see that datacl is "{{=Tc/dbuser,dbuser=CTc/dbuser}}" in first row. 
+
+But when i do capture, in the yaml file i always see it as "null". Can you fix it ?
+
+pgtry=>     SELECT db.oid,db.* FROM pg_catalog.pg_database db WHERE 1 = 1 AND datallowconn AND NOT datistemplate OR db.datname ='pgtry'
+    ORDER BY db.datname
+;
+  oid  |               datacl               | datallowconn | datcollate  | datcollversion | datconnlimit |  datctype   | datdba | datfrozenxid | dathasloginevt | daticurules | datistemplate | datlocale | datlocprovider | datminmxid | datname  | dattablespace | encoding |  oid
+-------+------------------------------------+--------------+-------------+----------------+--------------+-------------+--------+--------------+----------------+-------------+---------------+-----------+----------------+------------+----------+---------------+----------+-------
+ 27734 | "{{=Tc/dbuser,dbuser=CTc/dbuser}}" | t            | C           |                |           -1 | C           |  27735 | 726          |                |             | f             |           |                | 1          | pgtry    |          1663 |        6 | 27734
+     5 |                                    | t            | nl_NL.UTF-8 |                |           -1 | nl_NL.UTF-8 |     10 | 730          | f              |             | f             |           | c              | 1          | postgres |          1663 |        6 |     5
+(2 rows)
