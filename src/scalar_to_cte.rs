@@ -1662,6 +1662,65 @@ mod tests {
         let lowered = out.sql.to_lowercase();
         assert!(lowered.contains("from pg_catalog.pg_attrdef"), "inner table not qualified");
         Ok(())
+      }
+  
+    #[test]
+    fn case_when_exists_scalar_subquery() -> Result<()> {
+        let sql = r#"
+            SELECT
+              attname AS name,
+              attnum AS oid,
+              typ.oid AS typoid,
+              typ.typname AS datatype,
+              attnotnull AS not_null,
+              attr.atthasdef AS has_default_val,
+              nspname,
+              relname,
+              attrelid,
+              CASE
+                WHEN typ.typtype = 'd' THEN typ.typtypmod
+                ELSE atttypmod
+              END AS typmod,
+              CASE
+                WHEN atthasdef THEN (SELECT pg_get_expr(adbin, cls.oid) FROM pg_attrdef WHERE adrelid = cls.oid AND adnum = attr.attnum)
+                ELSE NULL
+              END AS default,
+              TRUE AS is_updatable,
+              CASE WHEN EXISTS (
+                SELECT *
+                FROM information_schema.key_column_usage
+                WHERE table_schema = nspname
+                  AND table_name = relname
+                  AND column_name = attname
+              ) THEN TRUE ELSE FALSE END AS isprimarykey,
+              CASE WHEN EXISTS (
+                SELECT *
+                FROM information_schema.table_constraints
+                WHERE table_schema = nspname
+                  AND table_name = relname
+                  AND constraint_type = 'UNIQUE'
+                  AND constraint_name IN (
+                    SELECT constraint_name
+                    FROM information_schema.constraint_column_usage
+                    WHERE table_schema = nspname
+                      AND table_name = relname
+                      AND column_name = attname
+                  )
+              ) THEN TRUE ELSE FALSE END AS isunique
+            FROM pg_attribute AS attr
+            JOIN pg_type AS typ ON attr.atttypid = typ.oid
+            JOIN pg_class AS cls ON cls.oid = attr.attrelid
+        "#;
+
+        let out = rewrite(sql)?;
+        let lowered = out.sql.to_lowercase();
+
+        assert!(lowered.starts_with("with __cte1"), "cte not injected");
+        assert!(lowered.contains("left outer join __cte1"), "join missing");
+        assert!(lowered.contains("cls.oid = __cte1.adrelid"), "cls predicate missing");
+        assert!(lowered.contains("attr.attnum = __cte1.adnum"), "attr predicate missing");
+        assert!(lowered.contains("case when atthasdef then __cte1.col"), "scalar not replaced inside case");
+        Ok(())
     }
 
 
