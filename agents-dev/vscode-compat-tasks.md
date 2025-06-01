@@ -133,4 +133,4 @@ ORDER BY attnum;
 ```
 
 ### Done 92
-Implemented handling for `SHOW` commands when `information_schema` is disabled by intercepting the commands in `server.rs` and returning values from `ClientOpts`. Added a regression test ensuring scalar subqueries inside `CASE` expressions are rewritten correctly. All tests pass.
+Unqualified tables inside scalar subqueries were left without schema after rewriting which caused planning errors. Updated `alias_subquery_tables` to prefix tables with `pg_catalog` and added `qualify_unqualified_inner_table` test to verify. All tests pass.
