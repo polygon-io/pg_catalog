@@ -14,7 +14,7 @@ def server():
         "cargo", "run", "--quiet", "--",
         "pg_catalog_data/pg_schema",
         "--default-catalog", "pgtry",
-        "--default-schema", "public",
+        "--default-schema", "pg_catalog",
         "--host", "127.0.0.1",
         "--port", str(PORT),
     ], text=True)
@@ -71,19 +71,12 @@ def get_results(cur):
     #         row[name] = raw_value
     #     result.append(row)
     # return result
-    
 
-# @pytest.mark.skip(reason="capture replay not stable")
-def test_captured_queries(server):
-    capture_files = sorted(glob.glob("captures/*.yaml"))
-    assert capture_files, "no capture files found"
-    first = capture_files[0]
-    with open(first) as f:
-        data = yaml.safe_load(f)
 
+def replay_captured_queries(queries):
     with psycopg.connect(CONN_STR) as conn:
         cur = conn.cursor()
-        for entry in data:
+        for entry in queries:
             if not entry.get("success", True):
                 continue
             query = entry["query"]
@@ -93,11 +86,18 @@ def test_captured_queries(server):
             It sends them as parameters to the server - as it should. 
             pyscopg3 doesn't do string interpolation
             """
+            query = query.replace("%", "%%")
             query_exec = convert_placeholders(query)
             cur.execute(query_exec, tuple(params))
             results = get_results(cur)
             expected_results = entry.get("result")
-
+            if entry.get("only_check_run"):
+                # TODO: this is for startup time etc. we only check if query runs
+                continue
+            if entry.get("no_order"):
+                # TODO: if there is no order by we don't care about the order of the rows
+                #   currently we don't check this and skip
+                continue
             for (expected_row, row) in zip(expected_results, results):
                 print("row", row)
                 print("expected", expected_row)
@@ -105,10 +105,15 @@ def test_captured_queries(server):
                     import ipdb; ipdb.set_trace()
 
 
-            # if results != expected_results:
-            #     print("results", results)
-            #     print("expected_results", expected_results)
-            #     import ipdb; ipdb.set_trace()
 
 
-            # assert result == entry.get("result")
+
+# @pytest.mark.skip(reason="capture replay not stable")
+def test_captured_queries(server):
+    capture_files = sorted(glob.glob("captures/*.yaml"))
+    assert capture_files, "no capture files found"
+    for file in capture_files:
+        with open(file) as f:
+            data = yaml.safe_load(f)
+            replay_captured_queries(data)
+
