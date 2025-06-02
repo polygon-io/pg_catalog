@@ -54,49 +54,26 @@ def convert_placeholders(q: str) -> str:
     return "".join(out)
 
 
-import re
-from psycopg import adapters, types
-
-_LOADER_RE = re.compile(r"type (\d+)")
-
-def _ensure_text_loader(conn, oid: int) -> None:
-    if adapters.get_loader(oid, 0):
-        return                         # already done
-    info = types.TypeInfo.fetch(conn, oid)
-    adapters.register_loader(oid, lambda b: b.decode())
-    if info.array_oid:
-        adapters.register_array_loader(info.array_oid, subtype=oid, cast=list)
-
 def get_results(cur):
     if cur.description is None:
         return []
-
-
-    try:
-        rows = cur.fetchall()
-    except psycopg.DataError as e:
-        print("--->", str(e))
-        rows = cur.fetchall()      
-
-    try:
-        names = [d.name for d in cur.description]
-        result = [dict(zip(names, row)) for row in rows]
-    except psycopg.DataError:
-        raise
-
-        pgres = cur.pgresult
-        names = [d.name for d in cur.description]
-        result = []
-        for i in range(pgres.ntuples):
-            row = {}
-            for j, name in enumerate(names):
-                raw_value = pgres.get_value(i, j)
-                row[name] = raw_value
-            result.append(row)
-        return result
+    rows = cur.fetchall()
+    names = [d.name for d in cur.description]
+    result = [dict(zip(names, row)) for row in rows]
+    return result
+    # pgres = cur.pgresult
+    # names = [d.name for d in cur.description]
+    # result = []
+    # for i in range(pgres.ntuples):
+    #     row = {}
+    #     for j, name in enumerate(names):
+    #         raw_value = pgres.get_value(i, j)
+    #         row[name] = raw_value
+    #     result.append(row)
+    # return result
     
 
-@pytest.mark.skip(reason="capture replay not stable")
+# @pytest.mark.skip(reason="capture replay not stable")
 def test_captured_queries(server):
     capture_files = sorted(glob.glob("captures/*.yaml"))
     assert capture_files, "no capture files found"

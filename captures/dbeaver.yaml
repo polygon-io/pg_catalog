@@ -20,8 +20,8 @@
   - pgtry
   result:
   - datacl:
-    - "=Tc/dbuser"
-    - "dbuser=CTc/dbuser"
+    - =Tc/dbuser
+    - dbuser=CTc/dbuser
     datallowconn: true
     datcollate: C
     datcollversion: null
@@ -84,7 +84,7 @@
   parameters: []
   result:
   - current_schema: public
-    session_user: postgres
+    session_user: dbuser
   success: true
   error_details: null
 - query: |-
@@ -94,12 +94,16 @@
   parameters: []
   result:
   - description: null
-    nspacl: '{abadur=UC/abadur,=U/abadur}'
+    nspacl:
+    - abadur=UC/abadur
+    - =U/abadur
     nspname: information_schema
     nspowner: 10
     oid: 12782
   - description: null
-    nspacl: '{abadur=UC/abadur,=U/abadur}'
+    nspacl:
+    - abadur=UC/abadur
+    - =U/abadur
     nspname: pg_catalog
     nspowner: 10
     oid: 11
@@ -109,7 +113,9 @@
     nspowner: 10
     oid: 99
   - description: null
-    nspacl: '{pg_database_owner=UC/pg_database_owner,=U/pg_database_owner}'
+    nspacl:
+    - pg_database_owner=UC/pg_database_owner
+    - =U/pg_database_owner
     nspname: public
     nspowner: 6171
     oid: 2200
@@ -141,7 +147,7 @@
   parameters: []
   result:
   - current_schema: public
-    session_user: postgres
+    session_user: dbuser
   success: true
   error_details: null
 - query: SHOW search_path
@@ -7397,6 +7403,19 @@
   parameters:
   - 50010
   result: []
+  success: true
+  error_details: null
+- query: select description from pg_shdescription join pg_database on objoid = pg_database.oid where datname = $1
+  parameters:
+  - pgtry
+  result: []
+  success: true
+  error_details: null
+- query: select description from pg_shdescription join pg_database on objoid = pg_database.oid where datname = $1
+  parameters:
+  - postgres
+  result:
+  - description: default administrative connection database
   success: true
   error_details: null
 - query: |-
