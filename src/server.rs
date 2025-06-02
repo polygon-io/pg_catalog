@@ -421,12 +421,12 @@ fn batches_to_json_rows(batches: &[RecordBatch]) -> Vec<BTreeMap<String, serde_j
                             let mut items = Vec::with_capacity(sa.len());
                             for i in 0..sa.len() {
                                 if sa.is_null(i) {
-                                    items.push("NULL".to_string());
+                                    items.push(serde_json::Value::Null);
                                 } else {
-                                    items.push(sa.value(i).replace('"', r#"\""#));
+                                    items.push(serde_json::Value::String(sa.value(i).to_string()));
                                 }
                             }
-                            serde_json::Value::String(format!("{{{}}}", items.join(",")))
+                            serde_json::Value::Array(items)
                         }
                     }
                     _ => serde_json::Value::Null,

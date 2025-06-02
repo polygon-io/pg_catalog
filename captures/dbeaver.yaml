@@ -19,7 +19,9 @@
   parameters:
   - pgtry
   result:
-  - datacl: '{=Tc/dbuser,dbuser=CTc/dbuser}'
+  - datacl:
+    - "=Tc/dbuser"
+    - "dbuser=CTc/dbuser"
     datallowconn: true
     datcollate: C
     datcollversion: null
