@@ -557,7 +557,8 @@ public:
         trusted: false
         relocatable: true
         schema: null
-        requires: '[''cube'']'
+        requires:
+        - cube
         comment: calculate great-circle distances on the surface of the Earth
       - name: earthdistance
         version: '1.2'
@@ -566,7 +567,8 @@ public:
         trusted: false
         relocatable: true
         schema: null
-        requires: '[''cube'']'
+        requires:
+        - cube
         comment: calculate great-circle distances on the surface of the Earth
       - name: uuid-ossp
         version: '1.1'

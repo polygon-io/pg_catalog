@@ -178,7 +178,10 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''always'', ''on'', ''off'']'
+        enumvals:
+        - always
+        - 'on'
+        - 'off'
         boot_val: 'off'
         reset_val: 'off'
         sourcefile: null
@@ -510,7 +513,10 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''safe_encoding'', ''on'', ''off'']'
+        enumvals:
+        - safe_encoding
+        - 'on'
+        - 'off'
         boot_val: safe_encoding
         reset_val: safe_encoding
         sourcefile: null
@@ -664,7 +670,9 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''escape'', ''hex'']'
+        enumvals:
+        - escape
+        - hex
         boot_val: hex
         reset_val: hex
         sourcefile: null
@@ -807,8 +815,16 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''debug5'', ''debug4'', ''debug3'', ''debug2'', ''debug1'', ''log'',
-          ''notice'', ''warning'', ''error'']'
+        enumvals:
+        - debug5
+        - debug4
+        - debug3
+        - debug2
+        - debug1
+        - log
+        - notice
+        - warning
+        - error
         boot_val: notice
         reset_val: notice
         sourcefile: null
@@ -897,7 +913,11 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''auto'', ''regress'', ''on'', ''off'']'
+        enumvals:
+        - auto
+        - regress
+        - 'on'
+        - 'off'
         boot_val: auto
         reset_val: auto
         sourcefile: null
@@ -932,7 +952,10 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''partition'', ''on'', ''off'']'
+        enumvals:
+        - partition
+        - 'on'
+        - 'off'
         boot_val: partition
         reset_val: partition
         sourcefile: null
@@ -1198,7 +1221,9 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''buffered'', ''immediate'']'
+        enumvals:
+        - buffered
+        - immediate
         boot_val: buffered
         reset_val: buffered
         sourcefile: null
@@ -1217,7 +1242,10 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''off'', ''on'', ''regress'']'
+        enumvals:
+        - 'off'
+        - 'on'
+        - regress
         boot_val: 'off'
         reset_val: 'off'
         sourcefile: null
@@ -1371,7 +1399,8 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''pglz'']'
+        enumvals:
+        - pglz
         boot_val: pglz
         reset_val: pglz
         sourcefile: null
@@ -1405,8 +1434,11 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''serializable'', ''repeatable read'', ''read committed'', ''read
-          uncommitted'']'
+        enumvals:
+        - serializable
+        - repeatable read
+        - read committed
+        - read uncommitted
         boot_val: read committed
         reset_val: read committed
         sourcefile: null
@@ -1459,7 +1491,10 @@ public:
         source: configuration file
         min_val: null
         max_val: null
-        enumvals: '[''posix'', ''sysv'', ''mmap'']'
+        enumvals:
+        - posix
+        - sysv
+        - mmap
         boot_val: posix
         reset_val: posix
         sourcefile: /Users/abadur/projects/query/postgres-data/postgresql.conf
@@ -2312,7 +2347,10 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''off'', ''on'', ''try'']'
+        enumvals:
+        - 'off'
+        - 'on'
+        - try
         boot_val: try
         reset_val: try
         sourcefile: null
@@ -2329,7 +2367,10 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''off'', ''on'', ''unknown'']'
+        enumvals:
+        - 'off'
+        - 'on'
+        - unknown
         boot_val: unknown
         reset_val: 'off'
         sourcefile: null
@@ -2346,8 +2387,17 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''disabled'', ''debug5'', ''debug4'', ''debug3'', ''debug2'',
-          ''debug1'', ''log'', ''notice'', ''warning'', ''error'']'
+        enumvals:
+        - disabled
+        - debug5
+        - debug4
+        - debug3
+        - debug2
+        - debug1
+        - log
+        - notice
+        - warning
+        - error
         boot_val: warning
         reset_val: warning
         sourcefile: null
@@ -2513,7 +2563,11 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''postgres'', ''postgres_verbose'', ''sql_standard'', ''iso_8601'']'
+        enumvals:
+        - postgres
+        - postgres_verbose
+        - sql_standard
+        - iso_8601
         boot_val: postgres
         reset_val: postgres
         sourcefile: null
@@ -3030,7 +3084,10 @@ public:
         source: command line
         min_val: null
         max_val: null
-        enumvals: '[''terse'', ''default'', ''verbose'']'
+        enumvals:
+        - terse
+        - default
+        - verbose
         boot_val: default
         reset_val: verbose
         sourcefile: null
@@ -3192,8 +3249,19 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''debug5'', ''debug4'', ''debug3'', ''debug2'', ''debug1'', ''info'',
-          ''notice'', ''warning'', ''error'', ''log'', ''fatal'', ''panic'']'
+        enumvals:
+        - debug5
+        - debug4
+        - debug3
+        - debug2
+        - debug1
+        - info
+        - notice
+        - warning
+        - error
+        - log
+        - fatal
+        - panic
         boot_val: error
         reset_val: error
         sourcefile: null
@@ -3211,8 +3279,19 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''debug5'', ''debug4'', ''debug3'', ''debug2'', ''debug1'', ''info'',
-          ''notice'', ''warning'', ''error'', ''log'', ''fatal'', ''panic'']'
+        enumvals:
+        - debug5
+        - debug4
+        - debug3
+        - debug2
+        - debug1
+        - info
+        - notice
+        - warning
+        - error
+        - log
+        - fatal
+        - panic
         boot_val: warning
         reset_val: warning
         sourcefile: null
@@ -3384,7 +3463,11 @@ public:
         source: command line
         min_val: null
         max_val: null
-        enumvals: '[''none'', ''ddl'', ''mod'', ''all'']'
+        enumvals:
+        - none
+        - ddl
+        - mod
+        - all
         boot_val: none
         reset_val: all
         sourcefile: null
@@ -4195,7 +4278,9 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''md5'', ''scram-sha-256'']'
+        enumvals:
+        - md5
+        - scram-sha-256
         boot_val: scram-sha-256
         reset_val: scram-sha-256
         sourcefile: null
@@ -4214,7 +4299,10 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''auto'', ''force_generic_plan'', ''force_custom_plan'']'
+        enumvals:
+        - auto
+        - force_generic_plan
+        - force_custom_plan
         boot_val: auto
         reset_val: auto
         sourcefile: null
@@ -4373,7 +4461,8 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''fsync'']'
+        enumvals:
+        - fsync
         boot_val: fsync
         reset_val: fsync
         sourcefile: null
@@ -4407,7 +4496,10 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''off'', ''on'', ''try'']'
+        enumvals:
+        - 'off'
+        - 'on'
+        - try
         boot_val: try
         reset_val: try
         sourcefile: null
@@ -4442,7 +4534,10 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''pause'', ''promote'', ''shutdown'']'
+        enumvals:
+        - pause
+        - promote
+        - shutdown
         boot_val: pause
         reset_val: pause
         sourcefile: null
@@ -4873,7 +4968,10 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''origin'', ''replica'', ''local'']'
+        enumvals:
+        - origin
+        - replica
+        - local
         boot_val: origin
         reset_val: origin
         sourcefile: null
@@ -4944,7 +5042,9 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''sysv'', ''mmap'']'
+        enumvals:
+        - sysv
+        - mmap
         boot_val: mmap
         reset_val: mmap
         sourcefile: null
@@ -5148,7 +5248,12 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '['''', ''TLSv1'', ''TLSv1.1'', ''TLSv1.2'', ''TLSv1.3'']'
+        enumvals:
+        - ''
+        - TLSv1
+        - TLSv1.1
+        - TLSv1.2
+        - TLSv1.3
         boot_val: ''
         reset_val: ''
         sourcefile: null
@@ -5165,7 +5270,11 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''TLSv1'', ''TLSv1.1'', ''TLSv1.2'', ''TLSv1.3'']'
+        enumvals:
+        - TLSv1
+        - TLSv1.1
+        - TLSv1.2
+        - TLSv1.3
         boot_val: TLSv1.2
         reset_val: TLSv1.2
         sourcefile: null
@@ -5268,7 +5377,10 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''none'', ''cache'', ''snapshot'']'
+        enumvals:
+        - none
+        - cache
+        - snapshot
         boot_val: cache
         reset_val: cache
         sourcefile: null
@@ -5392,7 +5504,12 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''local'', ''remote_write'', ''remote_apply'', ''on'', ''off'']'
+        enumvals:
+        - local
+        - remote_write
+        - remote_apply
+        - 'on'
+        - 'off'
         boot_val: 'on'
         reset_val: 'on'
         sourcefile: null
@@ -5427,8 +5544,15 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''local0'', ''local1'', ''local2'', ''local3'', ''local4'', ''local5'',
-          ''local6'', ''local7'']'
+        enumvals:
+        - local0
+        - local1
+        - local2
+        - local3
+        - local4
+        - local5
+        - local6
+        - local7
         boot_val: local0
         reset_val: local0
         sourcefile: null
@@ -5772,7 +5896,10 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''none'', ''pl'', ''all'']'
+        enumvals:
+        - none
+        - pl
+        - all
         boot_val: none
         reset_val: none
         sourcefile: null
@@ -5859,8 +5986,11 @@ public:
         source: override
         min_val: null
         max_val: null
-        enumvals: '[''serializable'', ''repeatable read'', ''read committed'', ''read
-          uncommitted'']'
+        enumvals:
+        - serializable
+        - repeatable read
+        - read committed
+        - read uncommitted
         boot_val: read committed
         reset_val: read committed
         sourcefile: null
@@ -6248,7 +6378,10 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''pglz'', ''on'', ''off'']'
+        enumvals:
+        - pglz
+        - 'on'
+        - 'off'
         boot_val: 'off'
         reset_val: 'off'
         sourcefile: null
@@ -6336,7 +6469,10 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''minimal'', ''replica'', ''logical'']'
+        enumvals:
+        - minimal
+        - replica
+        - logical
         boot_val: replica
         reset_val: replica
         sourcefile: null
@@ -6527,8 +6663,12 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''fsync'', ''fsync_writethrough'', ''fdatasync'', ''open_sync'',
-          ''open_datasync'']'
+        enumvals:
+        - fsync
+        - fsync_writethrough
+        - fdatasync
+        - open_sync
+        - open_datasync
         boot_val: open_datasync
         reset_val: open_datasync
         sourcefile: null
@@ -6597,7 +6737,9 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''base64'', ''hex'']'
+        enumvals:
+        - base64
+        - hex
         boot_val: base64
         reset_val: base64
         sourcefile: null
@@ -6615,7 +6757,9 @@ public:
         source: default
         min_val: null
         max_val: null
-        enumvals: '[''content'', ''document'']'
+        enumvals:
+        - content
+        - document
         boot_val: content
         reset_val: content
         sourcefile: null

@@ -101,7 +101,8 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
         reloptions: null
         relpartbound: null
       - oid: 1247
@@ -134,7 +135,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2836
@@ -1025,7 +1028,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 4163
@@ -6668,7 +6673,8 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
         reloptions: null
         relpartbound: null
       - oid: 12005
@@ -6701,7 +6707,8 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
         reloptions: null
         relpartbound: null
       - oid: 12000
@@ -6734,7 +6741,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 3429
@@ -6767,7 +6776,8 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
         reloptions: null
         relpartbound: null
       - oid: 12114
@@ -6800,7 +6810,8 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
         reloptions: null
         relpartbound: null
       - oid: 12104
@@ -6833,7 +6844,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=rw/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =rw/abadur
         reloptions: null
         relpartbound: null
       - oid: 12110
@@ -6866,7 +6879,8 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
         reloptions: null
         relpartbound: null
       - oid: 12138
@@ -6899,7 +6913,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''pg_read_all_stats=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - pg_read_all_stats=r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12118
@@ -6932,7 +6948,8 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
         reloptions: null
         relpartbound: null
       - oid: 12130
@@ -6965,7 +6982,8 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
         reloptions: null
         relpartbound: null
       - oid: 12134
@@ -6998,7 +7016,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''pg_read_all_stats=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - pg_read_all_stats=r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12033
@@ -7031,7 +7051,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 1418
@@ -7064,7 +7086,8 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
         reloptions: null
         relpartbound: null
       - oid: 12209
@@ -7097,7 +7120,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12339
@@ -7130,7 +7155,8 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
         reloptions: null
         relpartbound: null
       - oid: 6100
@@ -7163,7 +7189,8 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
         reloptions: null
         relpartbound: null
       - oid: 1249
@@ -7196,7 +7223,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 1255
@@ -7229,7 +7258,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 1259
@@ -7262,7 +7293,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2604
@@ -7295,7 +7328,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12214
@@ -7328,7 +7363,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12218
@@ -7361,7 +7398,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2606
@@ -7394,7 +7433,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2611
@@ -7427,7 +7468,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2610
@@ -7460,7 +7503,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2617
@@ -7493,7 +7538,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2753
@@ -7526,7 +7573,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2616
@@ -7559,7 +7608,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2601
@@ -7592,7 +7643,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2602
@@ -7625,7 +7678,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2603
@@ -7658,7 +7713,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2612
@@ -7691,7 +7748,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2995
@@ -7724,7 +7783,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2600
@@ -7757,7 +7818,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 3381
@@ -7790,7 +7853,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2618
@@ -7823,7 +7888,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2620
@@ -7856,7 +7923,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 3466
@@ -7889,7 +7958,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2609
@@ -7922,7 +7993,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2605
@@ -7955,7 +8028,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 3501
@@ -7988,7 +8063,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2615
@@ -8021,7 +8098,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2607
@@ -8054,7 +8133,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2608
@@ -8087,7 +8168,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 1262
@@ -8120,7 +8203,9 @@ public:
         relrewrite: 0
         relfrozenxid: '733'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2964
@@ -8153,7 +8238,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 1213
@@ -8186,7 +8273,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 1261
@@ -8219,7 +8308,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 1214
@@ -8252,7 +8343,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2396
@@ -8285,7 +8378,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 3602
@@ -8318,7 +8413,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 3603
@@ -8351,7 +8448,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 3600
@@ -8384,7 +8483,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 3601
@@ -8417,7 +8518,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 3764
@@ -8450,7 +8553,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 3079
@@ -8483,7 +8588,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2328
@@ -8516,7 +8623,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 1417
@@ -8549,7 +8658,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 3256
@@ -8582,7 +8693,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 6000
@@ -8615,7 +8728,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 826
@@ -8648,7 +8763,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 3394
@@ -8681,7 +8798,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 3596
@@ -8714,7 +8833,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 3592
@@ -8747,7 +8868,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 3456
@@ -8780,7 +8903,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 6243
@@ -8813,7 +8938,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 3350
@@ -8846,7 +8973,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 3541
@@ -8879,7 +9008,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 3576
@@ -8912,7 +9043,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2224
@@ -8945,7 +9078,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 6104
@@ -8978,7 +9113,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 6237
@@ -9011,7 +9148,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 6106
@@ -9044,7 +9183,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 6102
@@ -9077,7 +9218,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12010
@@ -9110,7 +9253,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12014
@@ -9143,7 +9288,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12018
@@ -9176,7 +9323,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12023
@@ -9209,7 +9358,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12028
@@ -9242,7 +9393,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12038
@@ -9275,7 +9428,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12043
@@ -9308,7 +9463,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12048
@@ -9341,7 +9498,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12053
@@ -9374,8 +9533,11 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
-        reloptions: '[''security_barrier=true'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
+        reloptions:
+        - security_barrier=true
         relpartbound: null
       - oid: 12058
         relname: pg_stats_ext
@@ -9407,8 +9569,11 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
-        reloptions: '[''security_barrier=true'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
+        reloptions:
+        - security_barrier=true
         relpartbound: null
       - oid: 12063
         relname: pg_stats_ext_exprs
@@ -9440,8 +9605,11 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
-        reloptions: '[''security_barrier=true'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
+        reloptions:
+        - security_barrier=true
         relpartbound: null
       - oid: 12068
         relname: pg_publication_tables
@@ -9473,7 +9641,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12073
@@ -9506,7 +9676,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12077
@@ -9539,7 +9711,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12081
@@ -9572,7 +9746,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12085
@@ -9605,7 +9781,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12090
@@ -9638,7 +9816,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12095
@@ -9671,7 +9851,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12099
@@ -9704,7 +9886,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12122
@@ -9737,7 +9921,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12126
@@ -9770,7 +9956,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12142
@@ -9803,7 +9991,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12147
@@ -9836,7 +10026,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12166
@@ -9869,7 +10061,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12152
@@ -9902,7 +10096,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12157
@@ -9935,7 +10131,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12161
@@ -9968,7 +10166,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12170
@@ -10001,7 +10201,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12175
@@ -10034,7 +10236,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12179
@@ -10067,7 +10271,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12183
@@ -10100,7 +10306,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12188
@@ -10133,7 +10341,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12192
@@ -10166,7 +10376,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12196
@@ -10199,7 +10411,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12201
@@ -10232,7 +10446,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12205
@@ -10265,7 +10481,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12222
@@ -10298,7 +10516,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12227
@@ -10331,7 +10551,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12232
@@ -10364,7 +10586,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12236
@@ -10397,7 +10621,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12240
@@ -10430,7 +10656,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12244
@@ -10463,7 +10691,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12249
@@ -10496,7 +10726,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12253
@@ -10529,7 +10761,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12257
@@ -10562,7 +10796,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12262
@@ -10595,7 +10831,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12266
@@ -10628,7 +10866,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12271
@@ -10661,7 +10901,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12275
@@ -10694,7 +10936,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12280
@@ -10727,7 +10971,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12285
@@ -10760,7 +11006,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12289
@@ -10793,7 +11041,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12293
@@ -10826,7 +11076,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12297
@@ -10859,7 +11111,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12301
@@ -10892,7 +11146,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12305
@@ -10925,7 +11181,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12310
@@ -10958,7 +11216,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12315
@@ -10991,7 +11251,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12320
@@ -11024,7 +11286,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12325
@@ -11057,7 +11321,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12329
@@ -11090,7 +11356,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12334
@@ -11123,7 +11391,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12343
@@ -11156,7 +11426,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12347
@@ -11189,7 +11461,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 2613
@@ -11222,7 +11496,8 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
         reloptions: null
         relpartbound: null
       - oid: 12850
@@ -11255,7 +11530,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12802
@@ -11288,7 +11565,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12835
@@ -11321,7 +11600,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12811
@@ -11354,7 +11635,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12816
@@ -11387,7 +11670,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12820
@@ -11420,7 +11705,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12840
@@ -11453,7 +11740,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12825
@@ -11486,7 +11775,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12830
@@ -11519,7 +11810,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12860
@@ -11552,7 +11845,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12845
@@ -11585,7 +11880,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12855
@@ -11618,7 +11915,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12865
@@ -11651,7 +11950,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12870
@@ -11684,7 +11985,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12875
@@ -11717,7 +12020,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12880
@@ -11750,7 +12055,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12885
@@ -11783,7 +12090,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12946
@@ -11816,7 +12125,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12890
@@ -11849,7 +12160,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12894
@@ -11882,7 +12195,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12978
@@ -11948,7 +12263,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12951
@@ -11981,7 +12298,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12903
@@ -12014,7 +12333,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12908
@@ -12047,7 +12368,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12979
@@ -12113,7 +12436,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12956
@@ -12146,7 +12471,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12918
@@ -12179,7 +12506,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12922
@@ -12212,7 +12541,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12975
@@ -12278,7 +12609,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12960
@@ -12311,7 +12644,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12932
@@ -12344,7 +12679,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12936
@@ -12377,7 +12714,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12968
@@ -12443,7 +12782,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12969
@@ -12542,7 +12883,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12973
@@ -12674,7 +13017,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12995
@@ -12707,7 +13052,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12980
@@ -12740,7 +13087,9 @@ public:
         relrewrite: 0
         relfrozenxid: '730'
         relminmxid: '1'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12990
@@ -12773,7 +13122,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 12985
@@ -12806,7 +13157,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 13004
@@ -12872,7 +13225,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 13009
@@ -12905,7 +13260,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 13014
@@ -12938,7 +13295,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 13019
@@ -12971,7 +13330,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 13081
@@ -13037,7 +13398,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 13028
@@ -13070,7 +13433,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 13114
@@ -13103,7 +13468,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 13033
@@ -13136,7 +13503,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 13085
@@ -13169,7 +13538,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 13037
@@ -13202,7 +13573,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 13042
@@ -13235,7 +13608,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 13047
@@ -13268,7 +13643,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 13089
@@ -13301,7 +13678,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 13052
@@ -13334,7 +13713,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 13057
@@ -13367,7 +13748,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 13093
@@ -13433,7 +13816,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 13067
@@ -13466,7 +13851,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 13072
@@ -13565,7 +13952,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 13097
@@ -13598,7 +13987,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 13101
@@ -13631,7 +14022,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 13105
@@ -13697,7 +14090,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 13123
@@ -13730,7 +14125,9 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null
       - oid: 13128
@@ -13763,6 +14160,8 @@ public:
         relrewrite: 0
         relfrozenxid: '0'
         relminmxid: '0'
-        relacl: '[''abadur=arwdDxtm/abadur'', ''=r/abadur'']'
+        relacl:
+        - abadur=arwdDxtm/abadur
+        - =r/abadur
         reloptions: null
         relpartbound: null

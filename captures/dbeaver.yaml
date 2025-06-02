@@ -8,7 +8,7 @@
   result: []
   success: true
   error_details: null
-- query: SET application_name = 'DBeaver 25.0.5 - Read PostgreSQL database list'
+- query: SET application_name = 'DBeaver 25.1.0 - Read PostgreSQL database list'
   parameters: []
   result: []
   success: true
@@ -19,7 +19,7 @@
   parameters:
   - pgtry
   result:
-  - datacl: '{{=Tc/dbuser,dbuser=CTc/dbuser}}'
+  - datacl: '{=Tc/dbuser,dbuser=CTc/dbuser}'
     datallowconn: true
     datcollate: C
     datcollversion: null
@@ -73,7 +73,7 @@
   result: []
   success: true
   error_details: null
-- query: SET application_name = 'DBeaver 25.0.5 - Main <pgtry>'
+- query: SET application_name = 'DBeaver 25.1.0 - Main <pgtry>'
   parameters: []
   result: []
   success: true
@@ -92,12 +92,12 @@
   parameters: []
   result:
   - description: null
-    nspacl: '{\"[''abadur=UC/abadur'', ''=U/abadur'']\"}'
+    nspacl: '{abadur=UC/abadur,=U/abadur}'
     nspname: information_schema
     nspowner: 10
     oid: 12782
   - description: null
-    nspacl: '{\"[''abadur=UC/abadur'', ''=U/abadur'']\"}'
+    nspacl: '{abadur=UC/abadur,=U/abadur}'
     nspname: pg_catalog
     nspowner: 10
     oid: 11
@@ -107,7 +107,7 @@
     nspowner: 10
     oid: 99
   - description: null
-    nspacl: '{\"[''pg_database_owner=UC/pg_database_owner'', ''=U/pg_database_owner'']\"}'
+    nspacl: '{pg_database_owner=UC/pg_database_owner,=U/pg_database_owner}'
     nspname: public
     nspowner: 6171
     oid: 2200
@@ -130,7 +130,7 @@
   result: []
   success: true
   error_details: null
-- query: SET application_name = 'DBeaver 25.0.5 - Metadata <pgtry>'
+- query: SET application_name = 'DBeaver 25.1.0 - Metadata <pgtry>'
   parameters: []
   result: []
   success: true
@@ -7065,16 +7065,250 @@
     reltype: 50011
   success: true
   error_details: null
-- query: |-
-    select c.oid,pg_catalog.pg_total_relation_size(c.oid) as total_rel_size,pg_catalog.pg_relation_size(c.oid) as rel_size
-    FROM pg_class c
-    WHERE c.relnamespace=$1
-  parameters:
-  - 2200
+- query: "SELECT a.oid,a.*,pd.description FROM pg_catalog.pg_roles a \nleft join pg_catalog.pg_shdescription pd on a.oid = pd.objoid\nORDER BY a.rolname"
+  parameters: []
   result:
-  - oid: 50010
-    rel_size: 0
-    total_rel_size: 0
+  - description: null
+    oid: 10
+    rolbypassrls: true
+    rolcanlogin: true
+    rolconfig: null
+    rolconnlimit: -1
+    rolcreatedb: true
+    rolcreaterole: true
+    rolinherit: true
+    rolname: abadur
+    rolpassword: '********'
+    rolreplication: true
+    rolsuper: true
+    rolvaliduntil: null
+  - description: null
+    oid: 4544
+    rolbypassrls: false
+    rolcanlogin: false
+    rolconfig: null
+    rolconnlimit: -1
+    rolcreatedb: false
+    rolcreaterole: false
+    rolinherit: true
+    rolname: pg_checkpoint
+    rolpassword: '********'
+    rolreplication: false
+    rolsuper: false
+    rolvaliduntil: null
+  - description: null
+    oid: 6304
+    rolbypassrls: false
+    rolcanlogin: false
+    rolconfig: null
+    rolconnlimit: -1
+    rolcreatedb: false
+    rolcreaterole: false
+    rolinherit: true
+    rolname: pg_create_subscription
+    rolpassword: '********'
+    rolreplication: false
+    rolsuper: false
+    rolvaliduntil: null
+  - description: null
+    oid: 6171
+    rolbypassrls: false
+    rolcanlogin: false
+    rolconfig: null
+    rolconnlimit: -1
+    rolcreatedb: false
+    rolcreaterole: false
+    rolinherit: true
+    rolname: pg_database_owner
+    rolpassword: '********'
+    rolreplication: false
+    rolsuper: false
+    rolvaliduntil: null
+  - description: null
+    oid: 4571
+    rolbypassrls: false
+    rolcanlogin: false
+    rolconfig: null
+    rolconnlimit: -1
+    rolcreatedb: false
+    rolcreaterole: false
+    rolinherit: true
+    rolname: pg_execute_server_program
+    rolpassword: '********'
+    rolreplication: false
+    rolsuper: false
+    rolvaliduntil: null
+  - description: null
+    oid: 6337
+    rolbypassrls: false
+    rolcanlogin: false
+    rolconfig: null
+    rolconnlimit: -1
+    rolcreatedb: false
+    rolcreaterole: false
+    rolinherit: true
+    rolname: pg_maintain
+    rolpassword: '********'
+    rolreplication: false
+    rolsuper: false
+    rolvaliduntil: null
+  - description: null
+    oid: 3373
+    rolbypassrls: false
+    rolcanlogin: false
+    rolconfig: null
+    rolconnlimit: -1
+    rolcreatedb: false
+    rolcreaterole: false
+    rolinherit: true
+    rolname: pg_monitor
+    rolpassword: '********'
+    rolreplication: false
+    rolsuper: false
+    rolvaliduntil: null
+  - description: null
+    oid: 6181
+    rolbypassrls: false
+    rolcanlogin: false
+    rolconfig: null
+    rolconnlimit: -1
+    rolcreatedb: false
+    rolcreaterole: false
+    rolinherit: true
+    rolname: pg_read_all_data
+    rolpassword: '********'
+    rolreplication: false
+    rolsuper: false
+    rolvaliduntil: null
+  - description: null
+    oid: 3374
+    rolbypassrls: false
+    rolcanlogin: false
+    rolconfig: null
+    rolconnlimit: -1
+    rolcreatedb: false
+    rolcreaterole: false
+    rolinherit: true
+    rolname: pg_read_all_settings
+    rolpassword: '********'
+    rolreplication: false
+    rolsuper: false
+    rolvaliduntil: null
+  - description: null
+    oid: 3375
+    rolbypassrls: false
+    rolcanlogin: false
+    rolconfig: null
+    rolconnlimit: -1
+    rolcreatedb: false
+    rolcreaterole: false
+    rolinherit: true
+    rolname: pg_read_all_stats
+    rolpassword: '********'
+    rolreplication: false
+    rolsuper: false
+    rolvaliduntil: null
+  - description: null
+    oid: 4569
+    rolbypassrls: false
+    rolcanlogin: false
+    rolconfig: null
+    rolconnlimit: -1
+    rolcreatedb: false
+    rolcreaterole: false
+    rolinherit: true
+    rolname: pg_read_server_files
+    rolpassword: '********'
+    rolreplication: false
+    rolsuper: false
+    rolvaliduntil: null
+  - description: null
+    oid: 4200
+    rolbypassrls: false
+    rolcanlogin: false
+    rolconfig: null
+    rolconnlimit: -1
+    rolcreatedb: false
+    rolcreaterole: false
+    rolinherit: true
+    rolname: pg_signal_backend
+    rolpassword: '********'
+    rolreplication: false
+    rolsuper: false
+    rolvaliduntil: null
+  - description: null
+    oid: 3377
+    rolbypassrls: false
+    rolcanlogin: false
+    rolconfig: null
+    rolconnlimit: -1
+    rolcreatedb: false
+    rolcreaterole: false
+    rolinherit: true
+    rolname: pg_stat_scan_tables
+    rolpassword: '********'
+    rolreplication: false
+    rolsuper: false
+    rolvaliduntil: null
+  - description: null
+    oid: 4550
+    rolbypassrls: false
+    rolcanlogin: false
+    rolconfig: null
+    rolconnlimit: -1
+    rolcreatedb: false
+    rolcreaterole: false
+    rolinherit: true
+    rolname: pg_use_reserved_connections
+    rolpassword: '********'
+    rolreplication: false
+    rolsuper: false
+    rolvaliduntil: null
+  - description: null
+    oid: 6182
+    rolbypassrls: false
+    rolcanlogin: false
+    rolconfig: null
+    rolconnlimit: -1
+    rolcreatedb: false
+    rolcreaterole: false
+    rolinherit: true
+    rolname: pg_write_all_data
+    rolpassword: '********'
+    rolreplication: false
+    rolsuper: false
+    rolvaliduntil: null
+  - description: null
+    oid: 4570
+    rolbypassrls: false
+    rolcanlogin: false
+    rolconfig: null
+    rolconnlimit: -1
+    rolcreatedb: false
+    rolcreaterole: false
+    rolinherit: true
+    rolname: pg_write_server_files
+    rolpassword: '********'
+    rolreplication: false
+    rolsuper: false
+    rolvaliduntil: null
+  success: true
+  error_details: null
+- query: "SELECT t.oid,t.*,pg_tablespace_location(t.oid) loc\nFROM pg_catalog.pg_tablespace t \nORDER BY t.oid"
+  parameters: []
+  result:
+  - loc: null
+    oid: 1663
+    spcacl: null
+    spcname: pg_default
+    spcoptions: null
+    spcowner: 10
+  - loc: null
+    oid: 1664
+    spcacl: null
+    spcname: pg_global
+    spcoptions: null
+    spcowner: 10
   success: true
   error_details: null
 - query: |-
@@ -7149,5 +7383,29 @@
     description: null
     objid: null
     relname: users
+  success: true
+  error_details: null
+- query: SELECT i.*,c.relnamespace FROM pg_catalog.pg_inherits i,pg_catalog.pg_class c WHERE i.inhrelid=$1 AND c.oid=i.inhparent ORDER BY i.inhseqno
+  parameters:
+  - 50010
+  result: []
+  success: true
+  error_details: null
+- query: SELECT i.*,c.relnamespace FROM pg_catalog.pg_inherits i,pg_catalog.pg_class c WHERE i.inhrelid=$1 AND c.oid=i.inhparent ORDER BY i.inhseqno
+  parameters:
+  - 50010
+  result: []
+  success: true
+  error_details: null
+- query: |-
+    select c.oid,pg_catalog.pg_total_relation_size(c.oid) as total_rel_size,pg_catalog.pg_relation_size(c.oid) as rel_size
+    FROM pg_class c
+    WHERE c.relnamespace=$1
+  parameters:
+  - 2200
+  result:
+  - oid: 50010
+    rel_size: 0
+    total_rel_size: 0
   success: true
   error_details: null

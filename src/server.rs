@@ -1161,6 +1161,7 @@ pub async fn start_server(
                     ARRAY['=Tc/dbuser', 'dbuser=CTc/dbuser']
                 );
                 ").await?;
+
                 df.show().await?;
     
             }
