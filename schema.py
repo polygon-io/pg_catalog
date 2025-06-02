@@ -44,6 +44,8 @@ def safe_value(value):
         return value
     if isinstance(value, str):
         return value
+    if isinstance(value, list):
+        return [safe_value(v) for v in value]
     if isinstance(value, (datetime.datetime, datetime.date)):
         return value.isoformat()
     return str(value)

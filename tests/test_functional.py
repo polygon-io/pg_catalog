@@ -51,6 +51,24 @@ def test_query_returns_int(server):
         row = cur.fetchone()
         assert isinstance(row[0], int)
 
+
+def test_text_array_return(server):
+    """Arrays of text should be decoded as Python lists."""
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+
+        cur.execute(
+            "SELECT datacl FROM pg_catalog.pg_database WHERE datname = 'postgres'"
+        )
+        row = cur.fetchone()
+        assert row == (None,)
+
+        cur.execute(
+            "SELECT datacl FROM pg_catalog.pg_database WHERE datname = 'template1'"
+        )
+        row = cur.fetchone()
+        assert row[0] == ["=c/abadur", "abadur=CTc/abadur"]
+
 def test_parameter_query(server):
     with psycopg.connect(CONN_STR) as conn:
         cur = conn.cursor()
