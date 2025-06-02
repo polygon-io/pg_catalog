@@ -53,14 +53,37 @@ def convert_placeholders(q: str) -> str:
         i += 1
     return "".join(out)
 
+
+import re
+from psycopg import adapters, types
+
+_LOADER_RE = re.compile(r"type (\d+)")
+
+def _ensure_text_loader(conn, oid: int) -> None:
+    if adapters.get_loader(oid, 0):
+        return                         # already done
+    info = types.TypeInfo.fetch(conn, oid)
+    adapters.register_loader(oid, lambda b: b.decode())
+    if info.array_oid:
+        adapters.register_array_loader(info.array_oid, subtype=oid, cast=list)
+
 def get_results(cur):
     if cur.description is None:
         return []
+
+
     try:
         rows = cur.fetchall()
+    except psycopg.DataError as e:
+        print("--->", str(e))
+        rows = cur.fetchall()      
+
+    try:
         names = [d.name for d in cur.description]
         result = [dict(zip(names, row)) for row in rows]
     except psycopg.DataError:
+        raise
+
         pgres = cur.pgresult
         names = [d.name for d in cur.description]
         result = []
@@ -71,9 +94,9 @@ def get_results(cur):
                 row[name] = raw_value
             result.append(row)
         return result
+    
 
-
-@pytest.mark.skip(reason="capture replay not stable")
+# @pytest.mark.skip(reason="capture replay not stable")
 def test_captured_queries(server):
     capture_files = sorted(glob.glob("captures/*.yaml"))
     assert capture_files, "no capture files found"
@@ -97,11 +120,18 @@ def test_captured_queries(server):
             cur.execute(query_exec, tuple(params))
             results = get_results(cur)
             expected_results = entry.get("result")
-            
-            if results != expected_results:
-                print("results", results)
-                print("expected_results", expected_results)
-                import ipdb; ipdb.set_trace()
+
+            for (expected_row, row) in zip(expected_results, results):
+                print("row", row)
+                print("expected", expected_row)
+                if row != expected_row:
+                    import ipdb; ipdb.set_trace()
+
+
+            # if results != expected_results:
+            #     print("results", results)
+            #     print("expected_results", expected_results)
+            #     import ipdb; ipdb.set_trace()
 
 
             # assert result == entry.get("result")

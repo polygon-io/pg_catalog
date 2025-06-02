@@ -4,8 +4,17 @@
 
 import psycopg
 
+conn = psycopg.connect("host=127.0.0.1 port=5432 dbname=postgres password=pencil sslmode=disable")
+cur = conn.cursor()
+# res = cur.execute("SELECT datname from pg_catalog.pg_database where datallowconn")
+print("from postgres")
+res = cur.execute("select datacl from pg_catalog.pg_database")
+for row in res.fetchall():
+    print(row)
+print("======")
+print("from pgwire")
 conn = psycopg.connect("host=127.0.0.1 port=5444 dbname=pgtry password=pencil sslmode=disable")
 cur = conn.cursor()
-res = cur.execute("SELECT datname from pg_catalog.pg_database where datallowconn")
+res = cur.execute("select datacl from pg_catalog.pg_database")
 for row in res.fetchall():
     print(row)
