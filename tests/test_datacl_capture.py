@@ -56,3 +56,20 @@ def test_datacl_capture(server):
 
     entry = next(e for e in data if e["query"].startswith("SELECT db.oid"))
     assert entry["result"][0]["datacl"] == ["=Tc/dbuser", "dbuser=CTc/dbuser"]
+
+
+def test_text_values_quoted(server):
+    proc, cap_file = server
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "select * from pg_catalog.pg_settings where name=%s",
+            ("standard_conforming_strings",),
+        )
+        cur.fetchone()
+
+    time.sleep(1)
+    with open(cap_file) as f:
+        text = f.read()
+
+    assert 'boot_val: "on"' in text
