@@ -36,8 +36,10 @@ public:
         file_name: /Users/abadur/projects/query/postgres-data/pg_hba.conf
         line_number: 117
         type: local
-        database: '[''all'']'
-        user_name: '[''all'']'
+        database:
+        - all
+        user_name:
+        - all
         address: null
         netmask: null
         auth_method: trust
@@ -47,8 +49,10 @@ public:
         file_name: /Users/abadur/projects/query/postgres-data/pg_hba.conf
         line_number: 119
         type: host
-        database: '[''all'']'
-        user_name: '[''all'']'
+        database:
+        - all
+        user_name:
+        - all
         address: 127.0.0.1
         netmask: 255.255.255.255
         auth_method: trust
@@ -58,8 +62,10 @@ public:
         file_name: /Users/abadur/projects/query/postgres-data/pg_hba.conf
         line_number: 121
         type: host
-        database: '[''all'']'
-        user_name: '[''all'']'
+        database:
+        - all
+        user_name:
+        - all
         address: ::1
         netmask: ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
         auth_method: trust
@@ -69,8 +75,10 @@ public:
         file_name: /Users/abadur/projects/query/postgres-data/pg_hba.conf
         line_number: 124
         type: local
-        database: '[''replication'']'
-        user_name: '[''all'']'
+        database:
+        - replication
+        user_name:
+        - all
         address: null
         netmask: null
         auth_method: trust
@@ -80,8 +88,10 @@ public:
         file_name: /Users/abadur/projects/query/postgres-data/pg_hba.conf
         line_number: 125
         type: host
-        database: '[''replication'']'
-        user_name: '[''all'']'
+        database:
+        - replication
+        user_name:
+        - all
         address: 127.0.0.1
         netmask: 255.255.255.255
         auth_method: trust
@@ -91,8 +101,10 @@ public:
         file_name: /Users/abadur/projects/query/postgres-data/pg_hba.conf
         line_number: 126
         type: host
-        database: '[''replication'']'
-        user_name: '[''all'']'
+        database:
+        - replication
+        user_name:
+        - all
         address: ::1
         netmask: ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
         auth_method: trust

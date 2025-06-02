@@ -77,8 +77,8 @@ public:
         daticurules: null
         datcollversion: null
         datacl:
-          - "=c/abadur"
-          - "abadur=CTc/abadur"
+        - =c/abadur
+        - abadur=CTc/abadur
       - oid: 4
         datname: template0
         datdba: 10
@@ -97,5 +97,5 @@ public:
         daticurules: null
         datcollversion: null
         datacl:
-          - "=c/abadur"
-          - "abadur=CTc/abadur"
+        - =c/abadur
+        - abadur=CTc/abadur
