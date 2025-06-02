@@ -604,20 +604,20 @@ fn batch_to_row_stream(batch: &RecordBatch, schema: Arc<Vec<FieldInfo>>) -> impl
 
                 DataType::List(inner) if inner.data_type() == &DataType::Utf8 => {
                     let list = col.as_any().downcast_ref::<ListArray>().unwrap();
-                    let value = if list.is_null(row_idx) {
-                        None::<String>
+                    let value: Option<Vec<String>> = if list.is_null(row_idx) {
+                        None
                     } else {
                         let arr = list.value(row_idx);
-                        let sa  = arr.as_any().downcast_ref::<StringArray>().unwrap();
+                        let sa = arr.as_any().downcast_ref::<StringArray>().unwrap();
                         let mut items = Vec::with_capacity(sa.len());
                         for i in 0..sa.len() {
                             if sa.is_null(i) {
                                 items.push("NULL".to_string());
                             } else {
-                                items.push(sa.value(i).replace('"', r#"\""#));
+                                items.push(sa.value(i).to_string());
                             }
                         }
-                        Some(format!("{{{}}}", items.join(",")))
+                        Some(items)
                     };
                     encoder.encode_field(&value).unwrap();
                 }

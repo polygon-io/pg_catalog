@@ -76,7 +76,9 @@ public:
         datlocale: null
         daticurules: null
         datcollversion: null
-        datacl: '[''=c/abadur'', ''abadur=CTc/abadur'']'
+        datacl:
+          - "=c/abadur"
+          - "abadur=CTc/abadur"
       - oid: 4
         datname: template0
         datdba: 10
@@ -94,4 +96,6 @@ public:
         datlocale: null
         daticurules: null
         datcollversion: null
-        datacl: '[''=c/abadur'', ''abadur=CTc/abadur'']'
+        datacl:
+          - "=c/abadur"
+          - "abadur=CTc/abadur"
