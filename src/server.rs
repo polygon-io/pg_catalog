@@ -1140,7 +1140,7 @@ pub async fn start_server(
                     726,
                     1,
                     1663,
-                    '{=Tc/dbuser,dbuser=CTc/dbuser}'
+                    ARRAY['=Tc/dbuser', 'dbuser=CTc/dbuser']
                 );
                 ").await?;
                 df.show().await?;

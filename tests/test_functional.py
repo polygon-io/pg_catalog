@@ -69,6 +69,12 @@ def test_text_array_return(server):
         row = cur.fetchone()
         assert row[0] == ["=c/abadur", "abadur=CTc/abadur"]
 
+        cur.execute(
+            "SELECT datacl FROM pg_catalog.pg_database WHERE datname = 'pgtry'"
+        )
+        row = cur.fetchone()
+        assert row[0] == ["=Tc/dbuser", "dbuser=CTc/dbuser"]
+
 def test_parameter_query(server):
     with psycopg.connect(CONN_STR) as conn:
         cur = conn.cursor()
