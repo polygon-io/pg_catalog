@@ -55,4 +55,4 @@ def test_datacl_capture(server):
         data = yaml.safe_load(f)
 
     entry = next(e for e in data if e["query"].startswith("SELECT db.oid"))
-    assert entry["result"][0]["datacl"] == "{{=Tc/dbuser,dbuser=CTc/dbuser}}"
+    assert entry["result"][0]["datacl"] == ["=Tc/dbuser", "dbuser=CTc/dbuser"]
