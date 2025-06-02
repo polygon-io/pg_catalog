@@ -24,6 +24,7 @@ use serde::{Serialize, Deserialize};
 use bytes::Bytes;
 use std::collections::BTreeMap;
 use std::fs::File;
+use std::io::Write;
 use std::path::PathBuf;
 
 use arrow::array::{BooleanArray, Int32Array, Int64Array, LargeStringArray, ListArray, StringArray, StringViewArray};
@@ -108,12 +109,89 @@ impl CaptureStore {
         Self { path, entries: Arc::new(Mutex::new(Vec::new())) }
     }
 
+    fn encode_yaml_value(v: &serde_json::Value, indent: usize, out: &mut String) {
+        match v {
+            serde_json::Value::Null => out.push_str("null"),
+            serde_json::Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
+            serde_json::Value::Number(n) => out.push_str(&n.to_string()),
+            serde_json::Value::String(s) => {
+                out.push('"');
+                for ch in s.chars() {
+                    match ch {
+                        '"' => out.push_str("\\\""),
+                        '\\' => out.push_str("\\\\"),
+                        _ => out.push(ch),
+                    }
+                }
+                out.push('"');
+            }
+            serde_json::Value::Array(arr) => {
+                if arr.is_empty() {
+                    out.push_str("[]");
+                } else {
+                    for item in arr {
+                        out.push('\n');
+                        out.push_str(&" ".repeat(indent));
+                        out.push_str("- ");
+                        Self::encode_yaml_value(item, indent + 2, out);
+                    }
+                }
+            }
+            serde_json::Value::Object(map) => {
+                if map.is_empty() {
+                    out.push_str("{}");
+                } else {
+                    for (k, v) in map {
+                        out.push('\n');
+                        out.push_str(&" ".repeat(indent));
+                        out.push_str(k);
+                        out.push_str(": ");
+                        Self::encode_yaml_value(v, indent + 2, out);
+                    }
+                }
+            }
+        }
+    }
+
+    fn save_entries(&self, entries: &[CapturedQuery]) {
+        if let Ok(mut file) = File::create(&self.path) {
+            if let Ok(val) = serde_json::to_value(entries) {
+                let mut out = String::new();
+                if let serde_json::Value::Array(arr) = val {
+                    let mut first = true;
+                    for item in arr {
+                        if let serde_json::Value::Object(map) = item {
+                            if !first {
+                                out.push('\n');
+                            }
+                            first = false;
+                            out.push_str("- ");
+                            let mut iter = map.iter();
+                            if let Some((k, v)) = iter.next() {
+                                out.push_str(k);
+                                out.push_str(": ");
+                                Self::encode_yaml_value(v, 2, &mut out);
+                            }
+                            for (k, v) in iter {
+                                out.push('\n');
+                                out.push_str("  ");
+                                out.push_str(k);
+                                out.push_str(": ");
+                                Self::encode_yaml_value(v, 2, &mut out);
+                            }
+                            out.push('\n');
+                        }
+                    }
+                }
+                let _ = file.write_all(out.as_bytes());
+            }
+        }
+    }
+
     fn append(&self, entry: CapturedQuery) {
         let mut vec = self.entries.lock().unwrap();
         vec.push(entry);
-        if let Ok(file) = File::create(&self.path) {
-            let _ = serde_yaml::to_writer(file, &*vec);
-        }
+        self.save_entries(&vec);
     }
 }
 
