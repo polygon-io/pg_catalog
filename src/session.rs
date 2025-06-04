@@ -413,9 +413,7 @@ fn parse_schema_dir(
         if path.extension().and_then(|s| s.to_str()) == Some("yaml") {
             let mut partial = parse_schema_file(path.to_str().unwrap());
 
-            for schemas in partial.values_mut() {
-                schemas.retain(|name, _| name != "information_schema");
-            }
+
 
             merge_schema_maps(&mut all, partial);
         }

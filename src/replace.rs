@@ -1435,7 +1435,10 @@ pub fn alias_subquery_tables(sql: &str) -> Result<String> {
     }
 
     fn alias_table_factor(tf: &mut TableFactor, counter: &mut usize) {
-        if let TableFactor::Table { alias, .. } = tf {
+        if let TableFactor::Table { name, alias, .. } = tf {
+            if name.0.len() == 1 {
+                name.0.insert(0, ObjectNamePart::Identifier(Ident::new("pg_catalog")));
+            }
             if alias.is_none() {
                 *alias = Some(TableAlias {
                     name: Ident::new(format!("subq{}_t", counter)),
@@ -1855,7 +1858,7 @@ mod tests {
     fn test_alias_subquery_tables() -> Result<(), Box<dyn std::error::Error>> {
         let sql = "SELECT (SELECT count(*) FROM pg_trigger WHERE tgrelid = rel.oid) FROM pg_class rel";
         let out = alias_subquery_tables(sql)?;
-        assert!(out.contains("FROM pg_trigger AS subq0_t"));
+        assert!(out.contains("FROM pg_catalog.pg_trigger AS subq0_t"));
         Ok(())
     }
 

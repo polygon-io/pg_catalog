@@ -247,7 +247,18 @@ def test_oid_parameter(server):
             (11,),
         )
         row = cur.fetchone()
-        assert row == ("pg_catalog",)
+    assert row == ("pg_catalog",)
+
+
+def test_information_schema_tables(server):
+    """Ensure information_schema views are available."""
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'pg_catalog' AND table_name = 'pg_type'"
+        )
+        row = cur.fetchone()
+        assert row == ("pg_type",)
 
 
 def test_name_cast_literal(server):

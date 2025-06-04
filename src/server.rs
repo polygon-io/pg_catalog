@@ -5,8 +5,8 @@
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use futures::{stream};
-use futures::Stream;
+use futures::{stream, Stream};
+use futures::stream::BoxStream;
 use arrow::array::{Array, Float32Array, Float64Array};
 use pgwire::api::auth::{AuthSource, DefaultServerParameterProvider, LoginInfo, Password};
 use pgwire::api::auth::md5pass::{hash_md5_password, Md5PasswordAuthStartupHandler};
@@ -348,6 +348,33 @@ impl DatafusionBackend {
         Ok(())
     }
 
+    fn show_variable_response<'a>(&self, name: &str, format: FieldFormat) -> Option<Response<'a>> {
+        let state = self.ctx.state();
+        let opts = state
+            .config_options()
+            .extensions
+            .get::<ClientOpts>()?;
+
+        let value = match name {
+            "application_name" => opts.application_name.as_str(),
+            "datestyle" => opts.datestyle.as_str(),
+            "search_path" => opts.search_path.as_str(),
+            _ => return None,
+        };
+
+        let fields = Arc::new(vec![
+            FieldInfo::new("name".to_string(), None, None, Type::TEXT, format),
+            FieldInfo::new("setting".to_string(), None, None, Type::TEXT, format),
+        ]);
+
+        let mut encoder = DataRowEncoder::new(fields.clone());
+        encoder.encode_field(&Some(name)).ok()?;
+        encoder.encode_field(&Some(value)).ok()?;
+        let row = encoder.finish().ok()?;
+        let rows = stream::iter(vec![Ok(row)]);
+        let rows: BoxStream<'a, PgWireResult<DataRow>> = Box::pin(rows);
+        Some(Response::Query(QueryResponse::new(fields, rows)))
+    }
 }
 
 pub struct DummyAuthSource;
@@ -751,6 +778,10 @@ impl SimpleQueryHandler for DatafusionBackend {
 
             let rows = stream::iter(vec![Ok(row)]);
             return Ok(vec![Response::Query(QueryResponse::new(field_infos, rows))]);
+        } else if lowercase.starts_with("show ") {
+            if let Some(resp) = self.show_variable_response(lowercase.trim_start_matches("show ").trim(), FieldFormat::Text) {
+                return Ok(vec![resp]);
+            }
         } else if lowercase == "" {
             return Ok(vec![Response::Execution(Tag::new(""))]);
         }
@@ -869,6 +900,10 @@ impl ExtendedQueryHandler for DatafusionBackend {
             let row = encoder.finish()?;
             let rows = stream::iter(vec![Ok(row)]);
             return Ok(Response::Query(QueryResponse::new(field_infos, rows)));
+        } else if lowercase.starts_with("show ") {
+            if let Some(resp) = self.show_variable_response(lowercase.trim_start_matches("show ").trim(), portal.result_column_format.format_for(0)) {
+                return Ok(resp);
+            }
         }
             
 
@@ -947,6 +982,12 @@ impl ExtendedQueryHandler for DatafusionBackend {
                 FieldFormat::Binary,
             )];
             return Ok(DescribeStatementResponse::new(vec![], fields));
+        } else if lowercase.starts_with("show ") {
+            let fields = vec![
+                FieldInfo::new("name".to_string(), None, None, Type::TEXT, FieldFormat::Binary),
+                FieldInfo::new("setting".to_string(), None, None, Type::TEXT, FieldFormat::Binary),
+            ];
+            return Ok(DescribeStatementResponse::new(vec![], fields));
         }
 
         let (results, schema) = execute_sql(&self.ctx, stmt.statement.as_str(), None, None)
@@ -992,6 +1033,12 @@ impl ExtendedQueryHandler for DatafusionBackend {
                 Type::TEXT,
                 portal.result_column_format.format_for(0),
             )];
+            return Ok(DescribePortalResponse::new(fields));
+        } else if lowercase.starts_with("show ") {
+            let fields = vec![
+                FieldInfo::new("name".to_string(), None, None, Type::TEXT, portal.result_column_format.format_for(0)),
+                FieldInfo::new("setting".to_string(), None, None, Type::TEXT, portal.result_column_format.format_for(1)),
+            ];
             return Ok(DescribePortalResponse::new(fields));
         }
 
@@ -1148,7 +1195,7 @@ pub async fn start_server(
             .with_default_catalog_and_schema(default_catalog, default_schema)
             .with_option_extension(ClientOpts::default());
     
-            session_config.options_mut().catalog.information_schema = true;
+            session_config.options_mut().catalog.information_schema = false;
     
             let ctx = Arc::new(SessionContext::new_with_config_rt(session_config, base_ctx.runtime_env().clone()));
             

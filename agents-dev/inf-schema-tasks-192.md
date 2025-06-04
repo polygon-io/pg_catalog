@@ -132,5 +132,6 @@ WHERE
 ORDER BY attnum;
 ```
 
-### Done 92
-Unqualified tables inside scalar subqueries were left without schema after rewriting which caused planning errors. Updated `alias_subquery_tables` to prefix tables with `pg_catalog` and added `qualify_unqualified_inner_table` test to verify. All tests pass.
+
+## Done
+Added a test for this query to ensure the scalar subquery in the CASE statement is rewritten into a CTE even when other EXISTS subqueries are present. The existing rewrite logic already produces the expected result.
