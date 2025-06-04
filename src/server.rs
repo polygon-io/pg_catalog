@@ -85,6 +85,9 @@ use tokio::net::TcpStream;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
 use log;
+use sqlparser::dialect::PostgreSqlDialect;
+use sqlparser::parser::Parser;
+use sqlparser::ast::Statement;
 
 /// PostgreSQL version reported to clients during startup and via `SHOW server_version`.
 pub const SERVER_VERSION: &str = "17.4.0";
@@ -363,17 +366,29 @@ impl DatafusionBackend {
         };
 
         let fields = Arc::new(vec![
-            FieldInfo::new("name".to_string(), None, None, Type::TEXT, format),
-            FieldInfo::new("setting".to_string(), None, None, Type::TEXT, format),
+            FieldInfo::new(name.to_string(), None, None, Type::TEXT, format),
         ]);
 
         let mut encoder = DataRowEncoder::new(fields.clone());
-        encoder.encode_field(&Some(name)).ok()?;
         encoder.encode_field(&Some(value)).ok()?;
         let row = encoder.finish().ok()?;
         let rows = stream::iter(vec![Ok(row)]);
         let rows: BoxStream<'a, PgWireResult<DataRow>> = Box::pin(rows);
         Some(Response::Query(QueryResponse::new(fields, rows)))
+    }
+
+    fn parse_show_variable(sql: &str) -> Option<String> {
+        let dialect = PostgreSqlDialect {};
+        let mut statements = Parser::parse_sql(&dialect, sql).ok()?;
+        if statements.len() != 1 {
+            return None;
+        }
+        match statements.pop()? {
+            Statement::ShowVariable { variable } if variable.len() == 1 => {
+                Some(variable[0].value.clone())
+            }
+            _ => None,
+        }
     }
 }
 
@@ -754,7 +769,8 @@ impl SimpleQueryHandler for DatafusionBackend {
     {
         println!("query handler");
 
-        let lowercase = query.trim().to_lowercase();
+        let trimmed = query.trim();
+        let lowercase = trimmed.to_lowercase();
         if lowercase.starts_with("begin") {
             return Ok(vec![Response::Execution(Tag::new("BEGIN"))]);
         } else if lowercase.starts_with("commit") {
@@ -778,8 +794,8 @@ impl SimpleQueryHandler for DatafusionBackend {
 
             let rows = stream::iter(vec![Ok(row)]);
             return Ok(vec![Response::Query(QueryResponse::new(field_infos, rows))]);
-        } else if lowercase.starts_with("show ") {
-            if let Some(resp) = self.show_variable_response(lowercase.trim_start_matches("show ").trim(), FieldFormat::Text) {
+        } else if let Some(var) = Self::parse_show_variable(trimmed) {
+            if let Some(resp) = self.show_variable_response(&var.to_lowercase(), FieldFormat::Text) {
                 return Ok(vec![resp]);
             }
         } else if lowercase == "" {
@@ -900,8 +916,8 @@ impl ExtendedQueryHandler for DatafusionBackend {
             let row = encoder.finish()?;
             let rows = stream::iter(vec![Ok(row)]);
             return Ok(Response::Query(QueryResponse::new(field_infos, rows)));
-        } else if lowercase.starts_with("show ") {
-            if let Some(resp) = self.show_variable_response(lowercase.trim_start_matches("show ").trim(), portal.result_column_format.format_for(0)) {
+        } else if let Some(var) = Self::parse_show_variable(sql_trim) {
+            if let Some(resp) = self.show_variable_response(&var.to_lowercase(), portal.result_column_format.format_for(0)) {
                 return Ok(resp);
             }
         }

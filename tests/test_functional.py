@@ -125,7 +125,11 @@ def test_set_and_show_application_name(server):
         cur.execute("SET application_name = 'pytest'")
         cur.execute("SHOW application_name")
         row = cur.fetchone()
-        assert row == ("application_name", "pytest")
+        assert row == ("pytest",)
+
+        cur.execute("SHOW application_name;")
+        row = cur.fetchone()
+        assert row == ("pytest",)
 
 
 def test_show_datestyle(server):
@@ -133,7 +137,7 @@ def test_show_datestyle(server):
         cur = conn.cursor()
         cur.execute("SHOW datestyle")
         row = cur.fetchone()
-        assert row == ("datestyle", "ISO, MDY")
+        assert row == ("ISO, MDY",)
 
 
 def test_show_search_path(server):
@@ -141,7 +145,7 @@ def test_show_search_path(server):
         cur = conn.cursor()
         cur.execute("SHOW search_path")
         row = cur.fetchone()
-        assert row == ("search_path", '"$user", public')
+        assert row == ('"$user", public',)
 
 
 def test_current_user(server):

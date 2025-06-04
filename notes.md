@@ -34,3 +34,6 @@ PostgreSQL                                      DataFusion
 └────────────────────────────────┘
 
 ```
+## SHOW command fix
+- Added proper SQL parsing for SHOW commands using sqlparser to handle trailing semicolons.
+- SHOW now returns a single column with the variable value, matching PostgreSQL output.
