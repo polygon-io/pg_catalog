@@ -99,10 +99,12 @@ def replay_captured_queries(queries):
                 #   currently we don't check this and skip
                 continue
             for (expected_row, row) in zip(expected_results, results):
+                print("query", query)
                 print("row", row)
                 print("expected", expected_row)
                 if row != expected_row:
-                    import ipdb; ipdb.set_trace()
+                    print("WARN: for query", query, "result: ", row, " and expected: ", expected_row, "are different")
+                    # import ipdb; ipdb.set_trace()
 
 
 
