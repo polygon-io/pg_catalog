@@ -104,6 +104,7 @@ def replay_captured_queries(queries):
                 print("expected", expected_row)
                 if row != expected_row:
                     print("WARN: for query", query, "result: ", row, " and expected: ", expected_row, "are different")
+                    assert(row == expected_row)
                     # import ipdb; ipdb.set_trace()
 
 

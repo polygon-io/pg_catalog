@@ -125,8 +125,7 @@ order by case when datname = pg_catalog.current_database() then -1::bigint else 
   query: "show DateStyle"
   result: 
   - 
-    name: "datestyle"
-    value: "ISO, MDY"
+    datestyle: "ISO, MDY"
   success: true
 
 - error_details: null
