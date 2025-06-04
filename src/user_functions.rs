@@ -94,6 +94,7 @@ impl TableFunctionImpl for RegClassOidFunc {
     }
 }
 
+/// Register `oid(text)` which looks up a table OID from `pg_class`.
 pub fn register_scalar_regclass_oid(ctx: &SessionContext) -> Result<()> {
     let ctx_arc = Arc::new(ctx.clone());
 
@@ -173,6 +174,8 @@ pub fn register_scalar_regclass_oid(ctx: &SessionContext) -> Result<()> {
     Ok(())
 }
 
+/// Register `pg_tablespace_location(oid)` which currently always
+/// returns NULL as tablespaces are not implemented.
 pub fn register_scalar_pg_tablespace_location(ctx: &SessionContext) -> Result<()> {
     // TODO: this always returns empty string for now.
     //   If there is a db supporting tablespaces, this should be done correctly.
@@ -213,6 +216,8 @@ fn format_type_string(oid: i64, typmod: Option<i64>) -> String {
 }
 use datafusion::common::cast::as_int64_array;
 
+/// Register a simplified `format_type(oid, typmod)` UDF that produces a
+/// human readable type name for common built-in types.
 pub fn register_scalar_format_type(ctx: &SessionContext) -> Result<()> {
     let ctx_arc = Arc::new(ctx.clone());
     let fun = |args: &[ColumnarValue]| -> Result<ColumnarValue> {
@@ -309,6 +314,8 @@ pub fn register_scalar_format_type(ctx: &SessionContext) -> Result<()> {
 //     Ok(())
 // }
 
+/// Implement a basic `pg_get_expr` that simply returns the input
+/// expression text without evaluation.
 pub fn register_scalar_pg_get_expr(ctx: &SessionContext) -> Result<()> {
     use arrow::array::{cast::as_string_array, ArrayRef, StringBuilder};
     use arrow::datatypes::DataType;
@@ -375,6 +382,7 @@ pub fn register_scalar_pg_get_expr(ctx: &SessionContext) -> Result<()> {
     Ok(())
 }
 
+/// Stub implementation of `pg_get_partkeydef` that always returns NULL.
 pub fn register_scalar_pg_get_partkeydef(ctx: &SessionContext) -> Result<()> {
     let ctx_arc = Arc::new(ctx.clone());
     let fun = |args: &[ColumnarValue]| -> Result<ColumnarValue> {
@@ -397,6 +405,8 @@ pub fn register_scalar_pg_get_partkeydef(ctx: &SessionContext) -> Result<()> {
     Ok(())
 }
 
+/// Placeholder for `pg_get_statisticsobjdef_columns` which currently
+/// returns NULL for all rows.
 pub fn register_pg_get_statisticsobjdef_columns(ctx: &SessionContext) -> Result<()> {
     let ctx_arc = Arc::new(ctx.clone());
     let fun = |args: &[ColumnarValue]| -> Result<ColumnarValue> {
@@ -419,6 +429,8 @@ pub fn register_pg_get_statisticsobjdef_columns(ctx: &SessionContext) -> Result<
     Ok(())
 }
 
+/// Compatibility stub for `pg_relation_is_publishable` which always
+/// returns `true`.
 pub fn register_pg_relation_is_publishable(ctx: &SessionContext) -> Result<()> {
     let ctx_arc = Arc::new(ctx.clone());
     for dt in [ArrowDataType::Int64, ArrowDataType::Utf8] {
@@ -508,6 +520,7 @@ pub fn register_has_schema_privilege(ctx: &SessionContext) -> Result<()> {
 }
 
 
+/// Register `current_schema()` returning the constant `public`.
 pub fn register_current_schema(ctx: &SessionContext) -> Result<()> {
     // TODO: this always returns public
     //   If there is a db supporting tablespaces, this should be done correctly.
@@ -530,6 +543,7 @@ pub fn register_current_schema(ctx: &SessionContext) -> Result<()> {
     Ok(())
 }
 
+/// Register `current_schemas(boolean)` returning `[pg_catalog, public]`.
 pub fn register_current_schemas(ctx: &SessionContext) -> Result<()> {
     use arrow::array::{ArrayRef, ListBuilder, StringBuilder};
     use arrow::datatypes::{DataType, Field};
@@ -557,6 +571,7 @@ pub fn register_current_schemas(ctx: &SessionContext) -> Result<()> {
     Ok(())
 }
 
+/// Stub for `pg_table_is_visible` which always reports `true`.
 pub fn register_scalar_pg_table_is_visible(ctx: &SessionContext) -> Result<()> {
     use arrow::array::{ArrayRef, BooleanBuilder};
     use arrow::datatypes::DataType;
@@ -585,6 +600,7 @@ pub fn register_scalar_pg_table_is_visible(ctx: &SessionContext) -> Result<()> {
     Ok(())
 }
 
+/// Register `pg_get_userbyid(oid)` returning NULL for now.
 pub fn register_scalar_pg_get_userbyid(ctx: &SessionContext) -> Result<()> {
     use arrow::array::{ArrayRef, StringBuilder};
     use arrow::datatypes::DataType;
@@ -613,6 +629,7 @@ pub fn register_scalar_pg_get_userbyid(ctx: &SessionContext) -> Result<()> {
     Ok(())
 }
 
+/// Register `pg_encoding_to_char(int)` returning the encoding name as text.
 pub fn register_scalar_pg_encoding_to_char(ctx: &SessionContext) -> Result<()> {
     use arrow::array::{ArrayRef, StringBuilder};
     use arrow::datatypes::DataType;
@@ -641,6 +658,7 @@ pub fn register_scalar_pg_encoding_to_char(ctx: &SessionContext) -> Result<()> {
     Ok(())
 }
 
+/// Register the `array_to_string` function used for array formatting.
 pub fn register_scalar_array_to_string(ctx: &SessionContext) -> Result<()> {
     use arrow::array::{
         Array, ArrayRef, GenericListArray, OffsetSizeTrait, StringArray, StringBuilder,
@@ -885,6 +903,7 @@ pub fn register_scalar_array_to_string(ctx: &SessionContext) -> Result<()> {
     Ok(())
 }
 
+/// Register the helper function `pg_get_one` used for planner rewrites.
 pub fn register_pg_get_one(ctx: &SessionContext) -> Result<()> {
     use arrow::datatypes::DataType;
     use datafusion::logical_expr::{
@@ -996,6 +1015,7 @@ impl Accumulator for ArrayCollector {
     }
 }
 
+/// Register the `array_agg` aggregate function and its pg_catalog alias.
 pub fn register_array_agg(ctx: &SessionContext) -> Result<()> {
     use datafusion_functions_aggregate::array_agg::array_agg_udaf;
     let udaf = array_agg_udaf();
@@ -1004,6 +1024,8 @@ pub fn register_array_agg(ctx: &SessionContext) -> Result<()> {
     Ok(())
 }
 
+/// Register the table function `pg_get_array` used to materialize
+/// results of `ARRAY(subquery)` rewrites.
 pub fn register_pg_get_array(ctx: &SessionContext) -> Result<()> {
     use arrow::datatypes::{DataType, Field};
     use datafusion::logical_expr::Volatility;
@@ -1131,6 +1153,8 @@ impl TableFunctionImpl for PostmasterStartTimeFunc {
     }
 }
 
+/// Register `pg_postmaster_start_time()` returning the current system
+/// time. Both a table function and a scalar variant are installed.
 pub fn register_pg_postmaster_start_time(ctx: &SessionContext) -> Result<()> {
     use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
     use datafusion::logical_expr::{create_udf, ColumnarValue, Volatility};
@@ -1184,6 +1208,7 @@ pub fn register_pg_postmaster_start_time(ctx: &SessionContext) -> Result<()> {
     Ok(())
 }
 
+/// Register a trivial `pg_age` implementation used by some catalog views.
 pub fn register_scalar_pg_age(ctx: &SessionContext) -> Result<()> {
     use arrow::datatypes::DataType;
     use datafusion::logical_expr::{create_udf, ColumnarValue, Volatility};
@@ -1928,6 +1953,7 @@ pub fn register_pg_get_keywords(ctx: &SessionContext) -> Result<()> {
     Ok(())
 }
 
+/// Register `pg_relation_size(oid)` returning zero for now.
 pub fn register_pg_relation_size(ctx: &SessionContext) -> Result<()> {
     use arrow::datatypes::DataType;
     use datafusion::common::ScalarValue;
@@ -1950,6 +1976,7 @@ pub fn register_pg_relation_size(ctx: &SessionContext) -> Result<()> {
     Ok(())
 }
 
+/// Register `pg_total_relation_size(oid)` returning zero for now.
 pub fn register_pg_total_relation_size(ctx: &SessionContext) -> Result<()> {
     use arrow::datatypes::DataType;
     use datafusion::common::ScalarValue;

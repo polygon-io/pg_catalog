@@ -63,6 +63,9 @@ pub struct RewriteOutcome {
     pub converted: usize,
 }
 
+/// Rewrite correlated scalar subqueries into WITH clauses joined back
+/// to the outer query. Returns the rewritten SQL and the number of
+/// subqueries converted.
 pub fn rewrite(sql: &str) -> Result<RewriteOutcome> {
     let mut stmt = parse_sql(sql)?;
 
@@ -82,6 +85,8 @@ pub fn rewrite(sql: &str) -> Result<RewriteOutcome> {
     })
 }
 
+/// Convenience wrapper that panics on errors and returns only the
+/// rewritten SQL string.
 pub fn rewrite_subquery_as_cte(sql: &str) -> String {
     let out = rewrite(sql);
     out.unwrap().sql

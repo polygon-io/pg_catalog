@@ -225,6 +225,8 @@ pub fn print_params(params: &Vec<Option<Bytes>>) {
     }
 }
 
+/// Run the input SQL through all available rewrite passes and return
+/// the transformed query together with any alias mappings produced.
 pub fn rewrite_filters(sql: &str) -> datafusion::error::Result<(String, HashMap<String, String>)>{
     let sql = replace_set_command_with_namespace(&sql)?;
     let sql = strip_default_collate(&sql)?;
