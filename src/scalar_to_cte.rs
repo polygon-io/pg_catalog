@@ -86,7 +86,8 @@ pub fn rewrite(sql: &str) -> Result<RewriteOutcome> {
 }
 
 /// Convenience wrapper that panics on errors and returns only the
-/// rewritten SQL string.
+/// rewritten SQL string. Will panic on SQL parse errors or if the input
+/// string is empty.
 pub fn rewrite_subquery_as_cte(sql: &str) -> String {
     let out = rewrite(sql);
     out.unwrap().sql
