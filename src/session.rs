@@ -680,29 +680,7 @@ pub async fn get_base_session_context(schema_path: &String, default_catalog:Stri
     println!("Current catalog: {}", default_catalog);
 
 
-    // register additional databases    
-    if let Some(catalog) = ctx.catalog("crm") {
-        let schema_provider = Arc::new(MemorySchemaProvider::new());
-        catalog.register_schema("crm", schema_provider.clone())?;
-        
-        let table_schema = Arc::new(Schema::new(vec![
-            Field::new("id", DataType::Int32, false),
-            Field::new("name", DataType::Utf8, false),
-        ]));
-
-        // Create a record batch
-        let batch = RecordBatch::try_new(
-            table_schema.clone(),
-            vec![
-                Arc::new(Int32Array::from(vec![1, 2, 3])),
-                Arc::new(StringArray::from(vec!["Alice", "Bob", "Charlie"])),
-            ],
-        )?;        
-
-        let table = MemTable::try_new(table_schema, vec![vec![batch]])?;
-
-        schema_provider.register_table("users".to_string(), Arc::new(table))?;
-    }
+    // register additional databases is done by callers
     // TODO: how to add a new db
     // TODO: how to add new columns in pg_catalog
     // ctx.sql("INSERT INTO pg_catalog.pg_class (relname, relnamespace, relkind, reltuples, reltype) VALUES ('users', 'crm', 'r', 3, 0);").await?;
