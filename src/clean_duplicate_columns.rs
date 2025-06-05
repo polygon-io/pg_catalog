@@ -146,6 +146,9 @@ fn walk_query(
     }
 }
 
+/// Assign unique aliases to every projected column and return a map
+/// of alias to original name so duplicate column names do not confuse
+/// clients.
 pub fn alias_all_columns(sql: &str) -> Result<(String, HashMap<String, String>)>{
     let dialect = PostgreSqlDialect {};
     let mut statements = Parser::parse_sql(&dialect, sql)

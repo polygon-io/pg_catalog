@@ -19,6 +19,9 @@ use sqlparser::ast::OneOrManyWithParens;
 use datafusion::error::{DataFusionError, Result};
 
 
+/// Add columns referenced inside `= ANY(...)` predicates to the
+/// `GROUP BY` clause so queries grouping on such expressions pass
+/// semantic analysis.
 pub fn rewrite_group_by_for_any(sql: &str) -> String {
     use sqlparser::ast::{
         visit_statements_mut, Expr, GroupByExpr, Ident, SelectItem, SetExpr, Statement,

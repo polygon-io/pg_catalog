@@ -23,6 +23,10 @@ use datafusion::error::{DataFusionError, Result};
 
 
 /* ---------- UDF ---------- */
+/// Register the minimal `regclass` UDF used by some rewrites.
+///
+/// The function simply returns the passed string value so that
+/// casts such as `'foo'::regclass` can be emulated.
 pub fn regclass_udfs(ctx: &SessionContext) -> Vec<ScalarUDF> {
     let regclass = create_udf(
         "regclass",
@@ -52,6 +56,8 @@ fn add_namespace_to_set_command(obj: &mut ObjectName) {
     }
 }
 
+/// Prefix `SET` command variables with `pg_catalog` when they are
+/// unqualified so that clients using bare names still work.
 pub fn replace_set_command_with_namespace(sql: &str) -> Result<String> {
     let dialect = PostgreSqlDialect {};
     let mut statements = Parser::parse_sql(&dialect, sql)
@@ -74,6 +80,8 @@ pub fn replace_set_command_with_namespace(sql: &str) -> Result<String> {
         .join("; "))
 }
 
+/// Rewrite casts from text to `regclass` (and optionally `oid`) into
+/// explicit function calls so they can be executed by DataFusion.
 pub fn replace_regclass(sql: &str) -> Result<String> {
     fn make_fn(name: &str, lit: &str) -> Expr {
         Expr::Function(Function {
@@ -165,7 +173,8 @@ pub fn replace_regclass(sql: &str) -> Result<String> {
         .join(" "))
 }
 
-
+/// Replace custom operator syntax like `OPERATOR(pg_catalog.~)` with the
+/// plain operator so regex comparisons can be parsed.
 pub fn rewrite_pg_custom_operator(sql: &str) -> Result<String> {
     use sqlparser::ast::{visit_expressions_mut, visit_statements_mut, BinaryOperator, Expr};
     use sqlparser::dialect::PostgreSqlDialect;
@@ -201,6 +210,8 @@ pub fn rewrite_pg_custom_operator(sql: &str) -> Result<String> {
         .join(" "))
 }
 
+/// Drop the `pg_catalog.` prefix from text casts such as
+/// `pg_catalog.text` so they become plain `TEXT` casts.
 pub fn rewrite_schema_qualified_text(sql: &str) -> Result<String> {
     fn is_pg_text(name: &ObjectName) -> bool {
         name.0.len() == 2
@@ -237,7 +248,8 @@ pub fn rewrite_schema_qualified_text(sql: &str) -> Result<String> {
         .join(" "))
 }
 
-
+/// Treat schema qualified casts to built-in types (regclass, regtype,
+/// regnamespace, ...) as plain `TEXT` casts so DataFusion can parse them.
 pub fn rewrite_schema_qualified_custom_types(sql: &str) -> Result<String> {
     use sqlparser::ast::{visit_expressions_mut, visit_statements_mut,
                          DataType, Expr, ObjectName, ObjectNamePart};
@@ -342,6 +354,8 @@ pub fn rewrite_regtype_cast(sql: &str) -> Result<String> {
         .join("; "))
 }
 
+/// Normalize casts to `pg_catalog.char` by converting them to the
+/// standard `CHAR` type understood by DataFusion.
 pub fn rewrite_char_cast(sql: &str) -> Result<String> {
     use sqlparser::ast::{
         visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName,
@@ -386,6 +400,8 @@ pub fn rewrite_char_cast(sql: &str) -> Result<String> {
         .join("; "))
 }
 
+/// Remove the `pg_catalog.` prefix from known table functions such as
+/// `pg_get_keywords` so unqualified calls work inside user queries.
 pub fn rewrite_schema_qualified_udtfs(sql: &str) -> Result<String> {
     use sqlparser::ast::{
         visit_expressions_mut, visit_relations_mut, visit_statements_mut, Expr,
@@ -450,6 +466,8 @@ pub fn rewrite_schema_qualified_udtfs(sql: &str) -> Result<String> {
     }
 }
 
+/// Convert casts to `xid` into plain BIGINT casts since transaction IDs
+/// are represented as 64 bit integers in the catalog snapshots.
 pub fn rewrite_xid_cast(sql: &str) -> Result<String> {
     use sqlparser::ast::{
         visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName,
@@ -494,6 +512,8 @@ pub fn rewrite_xid_cast(sql: &str) -> Result<String> {
         .join("; "))
 }
 
+/// Map casts to the pseudo-type `name` onto plain TEXT since the
+/// planner does not know about PostgreSQL's internal name type.
 pub fn rewrite_name_cast(sql: &str) -> Result<String> {
     use sqlparser::ast::{
         visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName,
@@ -538,6 +558,8 @@ pub fn rewrite_name_cast(sql: &str) -> Result<String> {
         .join("; "))
 }
 
+/// Convert casts to the OID type into BIGINT since our catalog
+/// represents object identifiers as plain integers.
 pub fn rewrite_oid_cast(sql: &str) -> Result<String> {
     use sqlparser::ast::{
         visit_expressions_mut, visit_statements_mut, CastKind, DataType, Expr, Function,
@@ -868,10 +890,9 @@ pub fn rewrite_available_updates(sql: &str) -> Result<String> {
     }
 }
 
-
+/// Drop `COLLATE pg_catalog.default` clauses since DataFusion has no
+/// notion of collations and the default adds no semantics.
 pub fn strip_default_collate(sql: &str) -> Result<String> {
-    /// we are dropping default collate, since datafusion doesnt support collates. 
-    /// and it's kinda safe. there is only default collate. 
     use sqlparser::ast::{
         visit_expressions_mut, visit_statements_mut, Expr, ObjectName, ObjectNamePart,
     };
@@ -1412,6 +1433,8 @@ pub fn rewrite_tuple_equality(sql: &str) -> Result<String> {
         .join("; "))
 }
 
+/// Ensure tables referenced inside subqueries are schema qualified and
+/// given aliases so the planner can resolve them unambiguously.
 pub fn alias_subquery_tables(sql: &str) -> Result<String> {
     use sqlparser::ast::{
         visit_expressions_mut, visit_statements_mut, Expr, Query, TableAlias,
