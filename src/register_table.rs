@@ -14,7 +14,7 @@ pub fn register_table(
     catalog_name: &str,
     schema_name: &str,
     table_name: &str,
-    columns: Vec<(&str, DataType)>,
+    columns: Vec<(&str, DataType, bool)>,
 ) -> Result<()> {
     let catalog: Arc<dyn CatalogProvider> = if let Some(cat) = ctx.catalog(catalog_name) {
         cat
@@ -34,7 +34,7 @@ pub fn register_table(
 
     let fields: Vec<Field> = columns
         .into_iter()
-        .map(|(name, dt)| Field::new(name, dt, false))
+        .map(|(name, dt, nullable)| Field::new(name, dt, nullable))
         .collect();
     let table_schema = Arc::new(Schema::new(fields));
 
@@ -62,7 +62,10 @@ mod tests {
             "crm",
             "crm",
             "mytable",
-            vec![("id", DataType::Int32), ("name", DataType::Utf8)],
+            vec![
+                ("id", DataType::Int32, false),
+                ("name", DataType::Utf8, true),
+            ],
         )?;
 
         let catalog = ctx.catalog("crm").unwrap();
@@ -78,6 +81,17 @@ mod tests {
             .unwrap()
             .value(0);
         assert_eq!(count, 0);
+
+        // verify nullability settings
+        let table = schema
+            .table("mytable")
+            .await?
+            .expect("table should exist");
+        let schema = table.schema();
+        let fields = schema.fields();
+        assert!(!fields[0].is_nullable());
+        assert!(fields[1].is_nullable());
+
         Ok(())
     }
 }
