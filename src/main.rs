@@ -11,12 +11,15 @@ mod db_table;
 mod logical_plan_rules;
 mod scalar_to_cte;
 mod replace_any_group_by;
+mod register_table;
 
 use std::env;
 use std::sync::Arc;
 // use arrow::util::pretty;
 use crate::server::start_server;
 use crate::session::{get_base_session_context};
+use register_table::register_table;
+use arrow::datatypes::DataType;
 
 async fn run() -> anyhow::Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -60,9 +63,14 @@ async fn run() -> anyhow::Result<()> {
 
 
     let (ctx, log) = get_base_session_context(schema_path, default_catalog.clone(), default_schema.clone()).await?;
-    // let results = execute_sql(&ctx, sql.as_str()).await?;
-    // pretty::print_batches(&results)?;
-    // print_execution_log(log.clone());
+
+    register_table(
+        &ctx,
+        "crm",
+        "crm",
+        "users",
+        vec![("id", DataType::Int32), ("name", DataType::Utf8)],
+    )?;
     
     start_server(
         Arc::new(ctx),
