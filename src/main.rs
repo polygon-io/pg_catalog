@@ -69,7 +69,10 @@ async fn run() -> anyhow::Result<()> {
         "crm",
         "crm",
         "users",
-        vec![("id", DataType::Int32), ("name", DataType::Utf8)],
+        vec![
+            ("id", DataType::Int32, false),
+            ("name", DataType::Utf8, true),
+        ],
     )?;
     
     start_server(
