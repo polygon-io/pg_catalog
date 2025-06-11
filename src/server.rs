@@ -1294,7 +1294,12 @@ pub async fn start_server(
             let df = ctx.sql("select datname from pg_catalog.pg_database").await?;
             df.show().await?;
             
-            pg_rs::register_user_tables(&ctx).await?;
+            use pg_rs::ColumnDef;
+            let mut c1 = BTreeMap::new();
+            c1.insert("id".to_string(), ColumnDef { col_type: "int".to_string(), nullable: true });
+            let mut c2 = BTreeMap::new();
+            c2.insert("name".to_string(), ColumnDef { col_type: "text".to_string(), nullable: true });
+            pg_rs::register_user_tables(&ctx, "users", vec![c1, c2]).await?;
 
 
             let factory = Arc::new(DatafusionBackendFactory {
