@@ -2,6 +2,10 @@
 name = "datafusion_pg_catalog"
 version = "0.1.0"
 edition = "2021"
+publish = false
+
+[lib]
+path = "src/lib.rs"
 
 [dependencies]
 datafusion = "47.0.0"

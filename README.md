@@ -33,6 +33,17 @@ Note: This is WIP heavily and API can change.
 
 ---
 
+## Installation
+
+Add the crate from GitHub to your `Cargo.toml`:
+
+```toml
+[dependencies]
+datafusion_pg_catalog = { git = "https://github.com/ybrs/pg_catalog" }
+```
+
+---
+
 ## Example Usage
 
 Register the catalog tables into your existing `SessionContext` and add your own tables:
