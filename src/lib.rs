@@ -16,3 +16,5 @@ pub mod pg_catalog_helpers;
 
 // Re-export all public functions from pg_catalog_helpers for convenience.
 pub use pg_catalog_helpers::*;
+// Re-export dispatch_query at crate root for convenience.
+pub use router::dispatch_query;
