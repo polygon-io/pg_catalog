@@ -12,6 +12,7 @@ mod logical_plan_rules;
 mod scalar_to_cte;
 mod replace_any_group_by;
 mod register_table;
+mod router;
 
 use std::env;
 use std::sync::Arc;
