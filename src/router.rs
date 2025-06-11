@@ -1,3 +1,15 @@
+//! Query router for catalog-aware SQL execution.
+//!
+//! The functions in this module examine SQL statements and determine whether
+//! they reference objects in the internal `pg_catalog` or
+//! `information_schema`. Queries touching those schemas are executed directly
+//! using [`execute_sql`], while all other statements are delegated to a caller
+//! provided handler.
+//!
+//! The primary entry point is [`dispatch_query`]. Library users can call this
+//! helper instead of executing SQL directly when they want catalog queries to
+//! be handled automatically.
+
 use std::sync::Arc;
 
 use arrow::record_batch::RecordBatch;
@@ -10,6 +22,10 @@ use sqlparser::ast::*;
 use sqlparser::dialect::PostgreSqlDialect;
 use sqlparser::parser::Parser;
 
+/// Split and normalise a `search_path` option.
+///
+/// The returned vector always contains `pg_catalog` as the first element
+/// to mirror PostgreSQL behaviour when it is not explicitly listed.
 fn parse_search_path(path: &str) -> Vec<String> {
     let mut parts: Vec<String> = path
         .split(',')
@@ -26,6 +42,7 @@ fn parse_search_path(path: &str) -> Vec<String> {
     parts
 }
 
+/// Check if a table exists within the provided catalog and schema.
 fn table_exists(ctx: &SessionContext, catalog: &str, schema: &str, table: &str) -> bool {
     ctx.catalog(catalog)
         .and_then(|c| c.schema(schema))
@@ -33,6 +50,7 @@ fn table_exists(ctx: &SessionContext, catalog: &str, schema: &str, table: &str) 
         .unwrap_or(false)
 }
 
+/// Prepend the given schema to an [`ObjectName`] if it is unqualified.
 fn qualify_table_name(name: &mut ObjectName, schema: &str) {
     if name.0.len() == 1 {
         let ident = name.0.remove(0);
@@ -41,6 +59,7 @@ fn qualify_table_name(name: &mut ObjectName, schema: &str) {
     }
 }
 
+/// Recursively qualify any catalog tables found in the given `TableFactor`.
 fn qualify_factor(ctx: &SessionContext, factor: &mut TableFactor) {
     match factor {
         TableFactor::Table { name, .. } => {
@@ -60,6 +79,7 @@ fn qualify_factor(ctx: &SessionContext, factor: &mut TableFactor) {
     }
 }
 
+/// Walks a `TableWithJoins` and qualifies catalog table names in all joins.
 fn qualify_table_with_joins(ctx: &SessionContext, twj: &mut TableWithJoins) {
     qualify_factor(ctx, &mut twj.relation);
     for join in &mut twj.joins {
@@ -67,6 +87,7 @@ fn qualify_table_with_joins(ctx: &SessionContext, twj: &mut TableWithJoins) {
     }
 }
 
+/// Qualify catalog tables referenced within a `SetExpr`.
 fn qualify_setexpr(ctx: &SessionContext, expr: &mut SetExpr) {
     match expr {
         SetExpr::Select(select) => {
@@ -83,6 +104,7 @@ fn qualify_setexpr(ctx: &SessionContext, expr: &mut SetExpr) {
     }
 }
 
+/// Apply catalog qualification rules to a parsed [`Query`].
 fn qualify_query(ctx: &SessionContext, query: &mut Query) {
     qualify_setexpr(ctx, &mut query.body);
     if let Some(with) = &mut query.with {
@@ -92,6 +114,7 @@ fn qualify_query(ctx: &SessionContext, query: &mut Query) {
     }
 }
 
+/// Parse the SQL string and fully qualify catalog table references.
 fn qualify_catalog_tables(ctx: &SessionContext, sql: &str) -> datafusion::error::Result<String> {
     let dialect = PostgreSqlDialect {};
     let mut statements = Parser::parse_sql(&dialect, sql)?;
@@ -107,6 +130,8 @@ fn qualify_catalog_tables(ctx: &SessionContext, sql: &str) -> datafusion::error:
         .join("; "))
 }
 
+/// Resolve the schema for the provided table [`ObjectName`] taking the session
+/// configuration and search path into account.
 fn resolve_schema(ctx: &SessionContext, name: &ObjectName) -> Option<String> {
     let state = ctx.state();
     let options = state.config_options();
@@ -147,6 +172,7 @@ fn resolve_schema(ctx: &SessionContext, name: &ObjectName) -> Option<String> {
     }
 }
 
+/// Determine if the object belongs to `pg_catalog` or `information_schema`.
 fn object_is_catalog(ctx: &SessionContext, name: &ObjectName) -> bool {
     if let Some(schema) = resolve_schema(ctx, name) {
         schema.eq_ignore_ascii_case("pg_catalog")
@@ -156,6 +182,7 @@ fn object_is_catalog(ctx: &SessionContext, name: &ObjectName) -> bool {
     }
 }
 
+/// Returns `true` if the table factor contains catalog tables.
 fn factor_has_catalog(ctx: &SessionContext, factor: &TableFactor) -> bool {
     match factor {
         TableFactor::Table { name, .. } => object_is_catalog(ctx, name),
@@ -167,6 +194,7 @@ fn factor_has_catalog(ctx: &SessionContext, factor: &TableFactor) -> bool {
     }
 }
 
+/// Check whether any table in a join tree references catalog tables.
 fn table_with_joins_contains_catalog(ctx: &SessionContext, twj: &TableWithJoins) -> bool {
     if factor_has_catalog(ctx, &twj.relation) {
         return true;
@@ -179,6 +207,7 @@ fn table_with_joins_contains_catalog(ctx: &SessionContext, twj: &TableWithJoins)
     false
 }
 
+/// Determine if a `SetExpr` references catalog tables.
 fn setexpr_has_catalog(ctx: &SessionContext, expr: &SetExpr) -> bool {
     match expr {
         SetExpr::Select(select) => {
@@ -197,6 +226,7 @@ fn setexpr_has_catalog(ctx: &SessionContext, expr: &SetExpr) -> bool {
     }
 }
 
+/// Recursively inspect a [`Query`] for catalog table references.
 fn query_has_catalog(ctx: &SessionContext, query: &Query) -> bool {
     if setexpr_has_catalog(ctx, &query.body) {
         return true;
@@ -211,6 +241,7 @@ fn query_has_catalog(ctx: &SessionContext, query: &Query) -> bool {
     false
 }
 
+/// Inspect a [`Statement`] and return true if it touches catalog tables.
 fn statement_has_catalog(ctx: &SessionContext, stmt: &Statement) -> bool {
     match stmt {
         Statement::Query(q) => query_has_catalog(ctx, q),
@@ -218,12 +249,19 @@ fn statement_has_catalog(ctx: &SessionContext, stmt: &Statement) -> bool {
     }
 }
 
+/// Parse the SQL string and check whether it references catalog tables.
 fn is_catalog_query(ctx: &SessionContext, sql: &str) -> datafusion::error::Result<bool> {
     let dialect = PostgreSqlDialect {};
     let statements = Parser::parse_sql(&dialect, sql)?;
     Ok(statements.iter().any(|s| statement_has_catalog(ctx, s)))
 }
 
+/// Dispatch `sql` either to the internal catalog handler or to a caller supplied
+/// handler.
+///
+/// When `sql` references `pg_catalog`/`information_schema`, it is executed with
+/// [`execute_sql`]. Otherwise the provided `handler` is awaited with the
+/// unmodified SQL.
 pub async fn dispatch_query<F, Fut>(
     ctx: &SessionContext,
     sql: &str,
