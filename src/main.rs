@@ -77,8 +77,8 @@ async fn run() -> anyhow::Result<()> {
         ],
     )?;
 
-    let _ = dispatch_query(&ctx, "SELECT 1", |_c, _q| async {
-        Ok((Vec::new(), Arc::new(Schema::empty())))
+    let _ = dispatch_query(&ctx, "SELECT 1", None, None, |_c, _q, _p, _t| {
+        async { Ok((Vec::new(), Arc::new(Schema::empty()))) }
     })
     .await?;
 
@@ -113,8 +113,8 @@ mod tests {
     #[tokio::test]
     async fn test_dispatch_in_main() -> anyhow::Result<()> {
         let ctx = SessionContext::new();
-        dispatch_query(&ctx, "SELECT 1", |_c, _q| async {
-            Ok((Vec::new(), Arc::new(Schema::empty())))
+        dispatch_query(&ctx, "SELECT 1", None, None, |_c, _q, _p, _t| {
+            async { Ok((Vec::new(), Arc::new(Schema::empty()))) }
         })
         .await?;
         Ok(())

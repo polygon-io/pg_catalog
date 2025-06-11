@@ -17,6 +17,8 @@ use arrow::datatypes::Schema;
 use datafusion::execution::context::SessionContext;
 
 use crate::session::{execute_sql, ClientOpts};
+use bytes::Bytes;
+use pgwire::api::Type;
 
 use sqlparser::ast::*;
 use sqlparser::dialect::PostgreSqlDialect;
@@ -262,20 +264,27 @@ fn is_catalog_query(ctx: &SessionContext, sql: &str) -> datafusion::error::Resul
 /// When `sql` references `pg_catalog`/`information_schema`, it is executed with
 /// [`execute_sql`]. Otherwise the provided `handler` is awaited with the
 /// unmodified SQL.
-pub async fn dispatch_query<F, Fut>(
-    ctx: &SessionContext,
-    sql: &str,
+pub async fn dispatch_query<'a, F, Fut>(
+    ctx: &'a SessionContext,
+    sql: &'a str,
+    params: Option<Vec<Option<Bytes>>>,
+    param_types: Option<Vec<Type>>,
     handler: F,
 ) -> datafusion::error::Result<(Vec<RecordBatch>, Arc<Schema>)>
 where
-    F: for<'a> Fn(&'a SessionContext, &'a str) -> Fut,
+    F: Fn(
+        &'a SessionContext,
+        &'a str,
+        Option<Vec<Option<Bytes>>>,
+        Option<Vec<Type>>,
+    ) -> Fut,
     Fut: std::future::Future<Output = datafusion::error::Result<(Vec<RecordBatch>, Arc<Schema>)>>,
 {
     if is_catalog_query(ctx, sql)? {
         let qualified = qualify_catalog_tables(ctx, sql)?;
-        execute_sql(ctx, &qualified, None, None).await
+        execute_sql(ctx, &qualified, params, param_types).await
     } else {
-        handler(ctx, sql).await
+        handler(ctx, sql, params, param_types).await
     }
 }
 
@@ -293,7 +302,7 @@ mod tests {
 
         let called = Arc::new(Mutex::new(false));
         let called_clone = called.clone();
-        let handler = move |_ctx: &SessionContext, _sql: &str| {
+        let handler = move |_ctx: &SessionContext, _sql: &str, _p, _t| {
             let called_clone = called_clone.clone();
             async move {
                 *called_clone.lock().unwrap() = true;
@@ -301,7 +310,7 @@ mod tests {
             }
         };
 
-        let _ = dispatch_query(&ctx, "SELECT * FROM users", handler).await?;
+        let _ = dispatch_query(&ctx, "SELECT * FROM users", None, None, handler).await?;
         assert!(*called.lock().unwrap());
         Ok(())
     }
@@ -312,7 +321,7 @@ mod tests {
         register_table(&ctx, "datafusion", "pg_catalog", "pg_class", vec![("oid", DataType::Int32, false)])?;
         let called = Arc::new(Mutex::new(false));
         let called_clone = called.clone();
-        let handler = move |_ctx: &SessionContext, _sql: &str| {
+        let handler = move |_ctx: &SessionContext, _sql: &str, _p, _t| {
             let called_clone = called_clone.clone();
             async move {
                 *called_clone.lock().unwrap() = true;
@@ -320,7 +329,7 @@ mod tests {
             }
         };
 
-        let _ = dispatch_query(&ctx, "SELECT * FROM pg_catalog.pg_class", handler).await?;
+        let _ = dispatch_query(&ctx, "SELECT * FROM pg_catalog.pg_class", None, None, handler).await?;
         assert!(!*called.lock().unwrap());
         Ok(())
     }
@@ -332,7 +341,7 @@ mod tests {
 
         let called = Arc::new(Mutex::new(false));
         let called_clone = called.clone();
-        let handler = move |_ctx: &SessionContext, _sql: &str| {
+        let handler = move |_ctx: &SessionContext, _sql: &str, _p, _t| {
             let called_clone = called_clone.clone();
             async move {
                 *called_clone.lock().unwrap() = true;
@@ -340,7 +349,7 @@ mod tests {
             }
         };
 
-        let _ = dispatch_query(&ctx, "SELECT * FROM pg_class", handler).await?;
+        let _ = dispatch_query(&ctx, "SELECT * FROM pg_class", None, None, handler).await?;
         assert!(!*called.lock().unwrap());
         Ok(())
     }
@@ -361,7 +370,7 @@ mod tests {
 
         let called = Arc::new(Mutex::new(false));
         let called_clone = called.clone();
-        let handler = move |_ctx: &SessionContext, _sql: &str| {
+        let handler = move |_ctx: &SessionContext, _sql: &str, _p, _t| {
             let called_clone = called_clone.clone();
             async move {
                 *called_clone.lock().unwrap() = true;
@@ -369,8 +378,30 @@ mod tests {
             }
         };
 
-        let _ = dispatch_query(&ctx, "SELECT * FROM pg_class", handler).await?;
+        let _ = dispatch_query(&ctx, "SELECT * FROM pg_class", None, None, handler).await?;
         assert!(*called.lock().unwrap());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_with_params_passes_to_handler() -> datafusion::error::Result<()> {
+        let ctx = SessionContext::new();
+        register_table(&ctx, "crm", "crm", "users", vec![("id", DataType::Int32, false)])?;
+
+        let captured: Arc<Mutex<Option<Vec<Option<Bytes>>>>> = Arc::new(Mutex::new(None));
+        let captured_clone = captured.clone();
+        let handler = move |_ctx: &SessionContext, _sql: &str, params, _types| {
+            let captured_clone = captured_clone.clone();
+            async move {
+                *captured_clone.lock().unwrap() = params;
+                Ok((Vec::new(), Arc::new(Schema::empty())))
+            }
+        };
+
+        let params = vec![Some(Bytes::from("1"))];
+        let types = vec![Type::INT4];
+        let _ = dispatch_query(&ctx, "SELECT * FROM users WHERE id=$1", Some(params.clone()), Some(types), handler).await?;
+        assert_eq!(*captured.lock().unwrap(), Some(params));
         Ok(())
     }
 }
