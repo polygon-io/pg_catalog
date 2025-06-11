@@ -40,6 +40,7 @@ use datafusion::{
 
 use crate::replace::{regclass_udfs};
 use crate::session::{execute_sql, ClientOpts};
+use crate::router::dispatch_query;
 use crate::user_functions::{
     register_array_agg,
     register_current_schema,
@@ -812,7 +813,9 @@ impl SimpleQueryHandler for DatafusionBackend {
         let _ = self.register_session_user(client);
         let _ = self.register_current_user(client);
 
-        let exec_res = execute_sql(&self.ctx, query, None, None).await;
+        let exec_res = dispatch_query(&self.ctx, query, None, None, |ctx, sql, p, t| {
+            execute_sql(ctx, sql, p, t)
+        }).await;
         let (results, schema) = match exec_res {
             Ok(v) => v,
             Err(e) => {
@@ -927,11 +930,12 @@ impl ExtendedQueryHandler for DatafusionBackend {
         let _ = self.register_session_user(client);
         let _ = self.register_current_user(client);
 
-        let exec_res = execute_sql(
+        let exec_res = dispatch_query(
             &self.ctx,
             portal.statement.statement.as_str(),
             Some(portal.parameters.clone()),
             Some(portal.statement.parameter_types.clone()),
+            |ctx, sql, params, types| execute_sql(ctx, sql, params, types),
         ).await;
         let (results, schema) = match exec_res {
             Ok(v) => v,
