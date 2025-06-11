@@ -12,6 +12,7 @@ mod logical_plan_rules;
 mod scalar_to_cte;
 mod replace_any_group_by;
 mod register_table;
+mod router;
 
 use std::env;
 use std::sync::Arc;
@@ -19,7 +20,8 @@ use std::sync::Arc;
 use crate::server::start_server;
 use crate::session::{get_base_session_context};
 use register_table::register_table;
-use arrow::datatypes::DataType;
+use arrow::datatypes::{DataType, Schema};
+use router::dispatch_query;
 
 async fn run() -> anyhow::Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -74,7 +76,12 @@ async fn run() -> anyhow::Result<()> {
             ("name", DataType::Utf8, true),
         ],
     )?;
-    
+
+    let _ = dispatch_query(&ctx, "SELECT 1", |_c, _q| async {
+        Ok((Vec::new(), Arc::new(Schema::empty())))
+    })
+    .await?;
+
     start_server(
         Arc::new(ctx),
         &address,
@@ -94,4 +101,22 @@ async fn main() -> anyhow::Result<()> {
         eprintln!("server crashed: {:?}", e);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use datafusion::execution::context::SessionContext;
+    use std::sync::Arc;
+    use arrow::datatypes::Schema;
+
+    #[tokio::test]
+    async fn test_dispatch_in_main() -> anyhow::Result<()> {
+        let ctx = SessionContext::new();
+        dispatch_query(&ctx, "SELECT 1", |_c, _q| async {
+            Ok((Vec::new(), Arc::new(Schema::empty())))
+        })
+        .await?;
+        Ok(())
+    }
 }
