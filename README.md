@@ -35,13 +35,26 @@ Note: This is WIP heavily and API can change.
 
 ## Example Usage
 
-Register the catalog tables into your existing `SessionContext`:
+Register the catalog tables into your existing `SessionContext` and add your own tables:
 
 ```rust
 use datafusion::execution::context::SessionContext;
+use arrow::datatypes::DataType;
+use pg_catalog_rs::{register_pg_catalog_tables, register_table};
 
 let ctx = SessionContext::new();
-pg_catalog_rs::register_pg_catalog_tables(&ctx).await?;
+register_pg_catalog_tables(&ctx).await?;
+
+register_table(
+    &ctx,
+    "crm",
+    "crm",
+    "users",
+    vec![
+        ("id", DataType::Int32, false),
+        ("name", DataType::Utf8, true),
+    ],
+)?;
 ```
 
 Then you can run queries like:
