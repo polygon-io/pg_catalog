@@ -2,27 +2,16 @@
 // Parses CLI arguments, builds a SessionContext and starts the pgwire server.
 // Provides a simple way to run the DataFusion-backed PostgreSQL emulator.
 
-mod session;
-mod replace;
-mod clean_duplicate_columns;
-mod server;
-mod user_functions;
-mod db_table;
-mod logical_plan_rules;
-mod scalar_to_cte;
-mod replace_any_group_by;
-mod register_table;
-mod router;
-mod pg_catalog_helpers;
+
 
 use std::env;
 use std::sync::Arc;
 // use arrow::util::pretty;
-use crate::server::start_server;
-use crate::session::{get_base_session_context};
-use register_table::register_table;
+use datafusion_pg_catalog::server::start_server;
+use datafusion_pg_catalog::session::get_base_session_context;
+use datafusion_pg_catalog::register_table::register_table;
 use arrow::datatypes::{DataType, Schema};
-use router::dispatch_query;
+use datafusion_pg_catalog::router::dispatch_query;
 
 async fn run() -> anyhow::Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -106,7 +95,7 @@ async fn main() -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use datafusion_pg_catalog::router::dispatch_query;
     use datafusion::execution::context::SessionContext;
     use std::sync::Arc;
     use arrow::datatypes::Schema;
