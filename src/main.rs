@@ -13,6 +13,7 @@ mod scalar_to_cte;
 mod replace_any_group_by;
 mod register_table;
 mod router;
+mod pg_catalog_helpers;
 
 use std::env;
 use std::sync::Arc;

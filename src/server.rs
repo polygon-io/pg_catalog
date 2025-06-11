@@ -89,6 +89,7 @@ use log;
 use sqlparser::dialect::PostgreSqlDialect;
 use sqlparser::parser::Parser;
 use sqlparser::ast::Statement;
+use crate::pg_catalog_helpers as pg_rs;
 
 /// PostgreSQL version reported to clients during startup and via `SHOW server_version`.
 pub const SERVER_VERSION: &str = "17.4.0";
@@ -1174,61 +1175,6 @@ async fn detect_gssencmode(mut socket: TcpStream) -> Option<TcpStream> {
     Some(socket)
 }
 
-use datafusion::error::Result as DFResult;
-
-async fn ensure_pg_catalog_rows(ctx: &SessionContext) -> DFResult<()> {
-    // 1. pg_class (row for oid 50010)
-    if ctx
-        .sql("SELECT 1 FROM pg_catalog.pg_class WHERE oid = 50010")
-        .await?
-        .count()
-        .await?
-        == 0
-    {
-        ctx.sql("INSERT INTO pg_catalog.pg_class
-                 (oid, relname, relnamespace, relkind, reltuples, reltype, relispartition)
-                 VALUES (50010,'users',2200,'r',0,50011, false)")
-            .await?
-            .collect()
-            .await?;
-    }
-
-    // 2. pg_type (row for oid 50011)
-    if ctx
-        .sql("SELECT 1 FROM pg_catalog.pg_type WHERE oid = 50011")
-        .await?
-        .count()
-        .await?
-        == 0
-    {
-        ctx.sql("INSERT INTO pg_catalog.pg_type
-                 (oid, typname, typrelid, typlen, typcategory)
-                 VALUES (50011,'_users',50010,-1,'C')")
-            .await?
-            .collect()
-            .await?;
-    }
-
-    // 3. pg_attribute (rows for attrelid 50010)
-    if ctx
-        .sql("SELECT 1 FROM pg_catalog.pg_attribute
-              WHERE attrelid = 50010 AND attnum = 1")
-        .await?
-        .count()
-        .await?
-        == 0
-    {
-        ctx.sql("INSERT INTO pg_catalog.pg_attribute
-                 (attrelid,attnum,attname,atttypid,atttypmod,attnotnull,attisdropped)
-                 VALUES
-                 (50010,1,'id',23,-1,false,false),
-                 (50010,2,'name',25,-1,false,false)")
-            .await?
-            .collect()
-            .await?;
-    }
-    Ok(())
-}
 
 pub async fn start_server(
     base_ctx: Arc<SessionContext>,
@@ -1255,17 +1201,16 @@ pub async fn start_server(
     
             let ctx = Arc::new(SessionContext::new_with_config_rt(session_config, base_ctx.runtime_env().clone()));
             
-            // TODO: public is schema ! catalog is the database.
+            // public is schema ! catalog is the database.
             if let Some(base_catalog) = base_ctx.catalog(default_catalog) {
                 println!("re-registering schema pg_catalog");
                 ctx.register_catalog(default_catalog, base_catalog.clone());
             }
 
-            // TODO: duplicate code
             for f in regclass_udfs(&ctx) {
                 ctx.register_udf(f);
             }
-        
+            
             ctx.register_udtf("regclass_oid", Arc::new(crate::user_functions::RegClassOidFunc));
         
             register_scalar_regclass_oid(&ctx)?;
@@ -1348,8 +1293,8 @@ pub async fn start_server(
             }
             let df = ctx.sql("select datname from pg_catalog.pg_database").await?;
             df.show().await?;
-
-            ensure_pg_catalog_rows(&ctx).await?;
+            
+            pg_rs::register_user_tables(&ctx).await?;
 
 
             let factory = Arc::new(DatafusionBackendFactory {

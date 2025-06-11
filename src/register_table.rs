@@ -7,7 +7,8 @@ use datafusion::datasource::MemTable;
 use datafusion::execution::context::SessionContext;
 use datafusion::error::Result;
 
-/// Register a new table in the given catalog and schema.
+
+/// Register a new datafusion memtable in the given catalog and schema.
 /// Creates the catalog or schema if it does not exist.
 pub fn register_table(
     ctx: &SessionContext,
