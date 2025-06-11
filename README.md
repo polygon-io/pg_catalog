@@ -66,6 +66,20 @@ SELECT attname FROM pg_attribute WHERE attrelid = 12345;
 
 Or use DBeaver/psql to introspect the schema.
 
+## Query Routing with `dispatch_query`
+
+When executing SQL, call [`dispatch_query`](src/router.rs) to automatically
+route catalog queries to the internal handler while forwarding all other
+statements to your application logic.
+
+```rust
+use pg_catalog_rs::router::dispatch_query;
+
+let result = dispatch_query(&ctx, "SELECT * FROM pg_class", |ctx, sql| async move {
+    ctx.sql(sql).await?.collect().await
+}).await?;
+```
+
 ---
 
 ## Integration
