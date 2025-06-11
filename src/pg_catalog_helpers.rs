@@ -113,6 +113,16 @@ pub async fn register_user_tables(
     table_name: &str,
     columns: Vec<BTreeMap<String, ColumnDef>>,
 ) -> DFResult<()> {
+    let df = ctx
+        .sql(&format!(
+            "SELECT 1 FROM pg_catalog.pg_class WHERE relname='{}'",
+            table_name.replace('\'', "''")
+        ))
+        .await?;
+    if df.count().await? > 0 {
+        return Ok(());
+    }
+
     let table_oid = NEXT_OID.fetch_add(1, Ordering::SeqCst);
     let type_oid = NEXT_OID.fetch_add(1, Ordering::SeqCst);
 
@@ -193,6 +203,47 @@ mod tests {
             ColumnDef { col_type: "text".to_string(), nullable: true },
         );
 
+        register_user_tables(&ctx, "contacts", vec![c1, c2]).await?;
+
+        let df = ctx
+            .sql("SELECT relname FROM pg_catalog.pg_class WHERE relname='contacts'")
+            .await?;
+        assert_eq!(df.count().await?, 1);
+
+        let df = ctx
+            .sql(
+                "SELECT attname FROM pg_catalog.pg_attribute \
+                 WHERE attrelid = (SELECT oid FROM pg_catalog.pg_class WHERE relname='contacts') \
+                 ORDER BY attnum",
+            )
+            .await?;
+        let batches = df.collect().await?;
+        assert_eq!(batches[0].num_rows(), 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_register_user_tables_idempotent() -> DFResult<()> {
+        let (ctx, _) = get_base_session_context(
+            &"pg_catalog_data/pg_schema".to_string(),
+            "pgtry".to_string(),
+            "public".to_string(),
+        )
+        .await?;
+
+        let mut c1 = BTreeMap::new();
+        c1.insert(
+            "id".to_string(),
+            ColumnDef { col_type: "int".to_string(), nullable: true },
+        );
+        let mut c2 = BTreeMap::new();
+        c2.insert(
+            "name".to_string(),
+            ColumnDef { col_type: "text".to_string(), nullable: true },
+        );
+
+        register_user_tables(&ctx, "contacts", vec![c1.clone(), c2.clone()]).await?;
+        // call again to ensure idempotency
         register_user_tables(&ctx, "contacts", vec![c1, c2]).await?;
 
         let df = ctx
