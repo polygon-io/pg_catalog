@@ -502,8 +502,8 @@ def test_rewrite_trigger_counts(server):
     )
     with psycopg.connect(CONN_STR) as conn:
         cur = conn.cursor()
-        with pytest.raises(Exception):
-            cur.execute(sql)
+        cur.execute(sql)
+        cur.fetchone()
 
 
 
@@ -544,6 +544,14 @@ def test_error_logging():
 
     assert "exec_error" in out
     assert "missing_table" in out
+
+
+def test_users_dummy_data(server):
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM users ORDER BY id")
+        rows = cur.fetchall()
+        assert rows == [(1, "Alice"), (2, "Bob")]
 
 
 def test_capture_option(tmp_path):
