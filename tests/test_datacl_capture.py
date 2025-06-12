@@ -1,4 +1,5 @@
 import subprocess
+import shutil
 import time
 import yaml
 import psycopg
@@ -10,9 +11,12 @@ CONN_STR = f"host=127.0.0.1 port={PORT} dbname=pgtry user=dbuser password=pencil
 @pytest.fixture(scope="module")
 def server(tmp_path_factory):
     cap_file = tmp_path_factory.mktemp("cap") / "capture.yaml"
+    zip_dir = tmp_path_factory.mktemp("schema")
+    zip_path = zip_dir / "schema.zip"
+    shutil.make_archive(str(zip_path.with_suffix("")), "zip", "pg_catalog_data/pg_schema")
     proc = subprocess.Popen([
         "cargo", "run", "--quiet", "--",
-        "pg_catalog_data/pg_schema",
+        str(zip_path),
         "--default-catalog", "pgtry",
         "--default-schema", "public",
         "--host", "127.0.0.1",

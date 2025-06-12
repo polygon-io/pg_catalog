@@ -14,7 +14,9 @@ use serde_yaml;
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::Path;
+use std::io::Read;
 use std::sync::{Arc, Mutex};
+use zip::ZipArchive;
 use pgwire::api::Type;
 use crate::clean_duplicate_columns::alias_all_columns;
 use crate::replace::{
@@ -418,19 +420,53 @@ pub async fn execute_sql(
 }
 
 
-fn parse_schema(schema_path: &str) -> HashMap<String, HashMap<String, HashMap<String, (SchemaRef, Vec<RecordBatch>)>>> {
-    if Path::new(schema_path).is_file() {
+fn parse_schema(
+    schema_path: &str,
+) -> HashMap<String, HashMap<String, HashMap<String, (SchemaRef, Vec<RecordBatch>)>>> {
+    let path = Path::new(schema_path);
+    if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("zip") {
+        parse_schema_zip(schema_path)
+    } else if path.is_file() {
         parse_schema_file(schema_path)
-    } else if Path::new(schema_path).is_dir() {
+    } else if path.is_dir() {
         parse_schema_dir(schema_path)
     } else {
         panic!("schema_path {} is neither a file nor a directory", schema_path);
     }
 }
 
-fn parse_schema_file(path: &str) -> HashMap<String, HashMap<String, HashMap<String, (SchemaRef, Vec<RecordBatch>)>>> {
+fn parse_schema_file(
+    path: &str,
+) -> HashMap<String, HashMap<String, HashMap<String, (SchemaRef, Vec<RecordBatch>)>>> {
     let contents = fs::read_to_string(path).expect("Failed to read schema file");
-    let parsed: YamlSchema = serde_yaml::from_str(&contents).expect("Invalid YAML");
+    parse_schema_contents(&contents)
+}
+
+fn parse_schema_zip(
+    path: &str,
+) -> HashMap<String, HashMap<String, HashMap<String, (SchemaRef, Vec<RecordBatch>)>>> {
+    let file = fs::File::open(path).expect("Failed to open schema zip file");
+    let mut archive = ZipArchive::new(file).expect("Failed to read zip file");
+    let mut all = HashMap::new();
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i).expect("Invalid zip entry");
+        if !entry.name().ends_with(".yaml") {
+            continue;
+        }
+        let mut contents = String::new();
+        entry
+            .read_to_string(&mut contents)
+            .expect("Failed to read zip entry");
+        let parsed = parse_schema_contents(&contents);
+        merge_schema_maps(&mut all, parsed);
+    }
+    all
+}
+
+fn parse_schema_contents(
+    contents: &str,
+) -> HashMap<String, HashMap<String, HashMap<String, (SchemaRef, Vec<RecordBatch>)>>> {
+    let parsed: YamlSchema = serde_yaml::from_str(contents).expect("Invalid YAML");
     parsed.0.into_iter()
         .map(|(catalog, schemas)| {
             let schemas = schemas.into_iter().map(|(schema, tables)| {
