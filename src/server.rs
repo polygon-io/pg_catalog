@@ -1098,7 +1098,6 @@ impl PgWireServerHandlers for DatafusionBackendFactory {
     fn startup_handler(&self) -> Arc<Self::StartupHandler> {
         let mut params = DefaultServerParameterProvider::default();
         params.server_version = SERVER_VERSION.to_string();
-        println!("startup handler");
         Arc::new(Md5PasswordAuthStartupHandler::new(
             Arc::new(DummyAuthSource),
             Arc::new(params),

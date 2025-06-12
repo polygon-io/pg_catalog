@@ -11,7 +11,8 @@ use datafusion::error::Result;
 /// Register a new datafusion memtable in the given catalog and schema.
 /// Creates the catalog or schema if it does not exist.
 /// Example: 
-/// ```
+/// ```text
+///  use datafusion_pg_catalog::register_table::register_table;
 ///  register_table(
 ///     &ctx,
 ///     "crm",

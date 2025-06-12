@@ -2,18 +2,12 @@
 // Loads YAML schemas into MemTables, registers UDFs and executes rewritten queries using DataFusion.
 // Separated to encapsulate DataFusion setup and query execution behaviour.
 
-use arrow::array::{Int32Array, StringArray, ArrayRef};
+use arrow::array::{Int32Array, ArrayRef};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
-
-use datafusion::catalog::{SchemaProvider, Session};
-
 use datafusion::catalog::memory::{MemoryCatalogProvider, MemorySchemaProvider};
-use datafusion::datasource::{MemTable};
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionContext;
 use arrow::record_batch::RecordBatch;
-
-use datafusion::execution::{SessionState, SessionStateBuilder};
 use serde::Deserialize;
 use serde_yaml;
 
