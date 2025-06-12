@@ -1,17 +1,13 @@
 // Entry point for the pg_catalog compatibility server.
 // Parses CLI arguments, builds a SessionContext and starts the pgwire server.
 // Provides a simple way to run the DataFusion-backed PostgreSQL emulator.
-
-
-
+use std::collections::BTreeMap;
 use std::env;
 use std::sync::Arc;
+use datafusion_pg_catalog::pg_catalog_helpers;
 // use arrow::util::pretty;
-use datafusion_pg_catalog::server::start_server;
+use datafusion_pg_catalog::{server::start_server, session::register_database_to_pg_catalog};
 use datafusion_pg_catalog::session::get_base_session_context;
-use datafusion_pg_catalog::register_table::register_table;
-use arrow::datatypes::{DataType, Schema};
-use datafusion_pg_catalog::router::dispatch_query;
 
 async fn run() -> anyhow::Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -56,21 +52,13 @@ async fn run() -> anyhow::Result<()> {
 
     let (ctx, log) = get_base_session_context(schema_path, default_catalog.clone(), default_schema.clone()).await?;
 
-    register_table(
-        &ctx,
-        "crm",
-        "crm",
-        "users",
-        vec![
-            ("id", DataType::Int32, false),
-            ("name", DataType::Utf8, true),
-        ],
-    )?;
-
-    let _ = dispatch_query(&ctx, "SELECT 1", None, None, |_c, _q, _p, _t| {
-        async { Ok((Vec::new(), Arc::new(Schema::empty()))) }
-    })
-    .await?;
+    register_database_to_pg_catalog(&ctx).await?;
+    use pg_catalog_helpers::ColumnDef;
+    let mut c1 = BTreeMap::new();
+    c1.insert("id".to_string(), ColumnDef { col_type: "int".to_string(), nullable: true });
+    let mut c2 = BTreeMap::new();
+    c2.insert("name".to_string(), ColumnDef { col_type: "text".to_string(), nullable: true });
+    pg_catalog_helpers::register_user_tables(&ctx, "users", vec![c1, c2]).await?;
 
     start_server(
         Arc::new(ctx),

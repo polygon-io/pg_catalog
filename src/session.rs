@@ -2,16 +2,12 @@
 // Loads YAML schemas into MemTables, registers UDFs and executes rewritten queries using DataFusion.
 // Separated to encapsulate DataFusion setup and query execution behaviour.
 
-use arrow::array::{Int32Array, StringArray, ArrayRef};
+use arrow::array::{Int32Array, ArrayRef};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
-
-use datafusion::catalog::SchemaProvider;
-
 use datafusion::catalog::memory::{MemoryCatalogProvider, MemorySchemaProvider};
-use datafusion::datasource::{MemTable};
+use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionContext;
 use arrow::record_batch::RecordBatch;
-
 use serde::Deserialize;
 use serde_yaml;
 
@@ -41,11 +37,54 @@ use crate::replace::{
     rewrite_schema_qualified_udtfs,
     strip_default_collate,
 };
+
+use crate::user_functions::{
+    register_array_agg,
+    register_current_schema,
+    register_current_schemas,
+    register_pg_get_array,
+    register_oidvector_to_array,
+    register_pg_get_function_arguments,
+    register_pg_get_function_result,
+    register_pg_get_function_sqlbody,
+    register_pg_get_indexdef,
+    register_pg_get_triggerdef,
+    register_pg_get_ruledef,
+    register_pg_get_one,
+    register_pg_get_statisticsobjdef_columns,
+    register_pg_get_viewdef,
+    register_pg_get_keywords,
+    register_pg_available_extension_versions,
+    register_pg_postmaster_start_time,
+    register_pg_relation_is_publishable,
+    register_has_database_privilege,
+    register_has_schema_privilege,
+    register_pg_relation_size,
+    register_pg_total_relation_size,
+    register_quote_ident,
+    register_scalar_array_to_string,
+    register_scalar_format_type,
+    register_scalar_pg_age,
+    register_scalar_pg_encoding_to_char,
+    register_scalar_pg_get_expr,
+    register_scalar_pg_get_partkeydef,
+    register_scalar_pg_get_userbyid,
+    register_scalar_pg_is_in_recovery,
+    register_scalar_pg_table_is_visible,
+    register_scalar_pg_tablespace_location,
+    register_scalar_regclass_oid,
+    register_scalar_txid_current,
+    register_encode,
+    register_upper,
+    register_version_fn,
+    register_translate,
+};
+
+
 use crate::scalar_to_cte::rewrite_subquery_as_cte;
 use bytes::Bytes;
 
 use datafusion::scalar::ScalarValue;
-use crate::user_functions::{register_scalar_format_type, register_scalar_pg_tablespace_location, register_scalar_regclass_oid};
 use datafusion::common::{config_err, config::ConfigEntry};
 use datafusion::common::config::{ConfigExtension, ExtensionOptions};
 use crate::db_table::{map_pg_type, ObservableMemTable, ScanTrace};
@@ -615,21 +654,9 @@ fn build_table(def: TableDef) -> (SchemaRef, Vec<RecordBatch>) {
     (Arc::new(Schema::new(fields)), record_batches)
 }
 
-pub async fn get_base_session_context(schema_path: &String, default_catalog:String, default_schema:String) -> datafusion::error::Result<(SessionContext, Arc<Mutex<Vec<ScanTrace>>>)> {
-    let log: Arc<Mutex<Vec<ScanTrace>>> = Arc::new(Mutex::new(Vec::new()));
 
-    let schemas = parse_schema(schema_path.as_str());
-
-    let mut config = datafusion::execution::context::SessionConfig::new()
-        .with_default_catalog_and_schema(&default_catalog, &default_schema)
-        .with_option_extension(ClientOpts::default());
-
-    config.options_mut().catalog.information_schema = true;
-
-    let ctx = SessionContext::new_with_config(config);
-
-    for (catalog_name, schemas) in schemas {
-
+fn register_catalogs_from_schemas(ctx:&SessionContext, schemas: HashMap<String, HashMap<String, HashMap<String, (Arc<Schema>, Vec<RecordBatch>)>>>, default_catalog:String, log: Arc<Mutex<Vec<ScanTrace>>>) -> datafusion::error::Result<&SessionContext, DataFusionError> {
+    for (catalog_name, schemas) in schemas {        
         let current_catalog = if catalog_name == "public" {
             default_catalog.to_string()
         } else {
@@ -663,6 +690,63 @@ pub async fn get_base_session_context(schema_path: &String, default_catalog:Stri
             }
         }
     }
+    Ok(ctx)
+}
+
+
+pub async fn register_database_to_pg_catalog(ctx:&SessionContext) -> datafusion::error::Result<&SessionContext, DataFusionError> {
+    let df = ctx.sql("SELECT datname FROM pg_catalog.pg_database where datname='pgtry'").await?;
+    if df.count().await? == 0 {
+        let df = ctx.sql("INSERT INTO pg_catalog.pg_database (
+            oid,
+            datname,
+            datdba,
+            encoding,
+            datcollate,
+            datctype,
+            datistemplate,
+            datallowconn,
+            datconnlimit,
+            datfrozenxid,
+            datminmxid,
+            dattablespace,
+            datacl
+        ) VALUES (
+            27734,
+            'pgtry',
+            27735,
+            6,
+            'C',
+            'C',
+            false,
+            true,
+            -1,        
+            726,
+            1,
+            1663,
+            ARRAY['=Tc/dbuser', 'dbuser=CTc/dbuser']
+        );
+        ").await?;
+        df.show().await?;    
+    }
+    let df = ctx.sql("select datname from pg_catalog.pg_database").await?;
+    df.show().await?;
+    Ok(ctx)
+}
+
+
+pub async fn get_base_session_context(schema_path: &String, default_catalog:String, default_schema:String) -> datafusion::error::Result<(SessionContext, Arc<Mutex<Vec<ScanTrace>>>)> {
+    let log: Arc<Mutex<Vec<ScanTrace>>> = Arc::new(Mutex::new(Vec::new()));
+
+    let schemas = parse_schema(schema_path.as_str());
+    let mut session_config = datafusion::execution::context::SessionConfig::new()
+        .with_default_catalog_and_schema(&default_catalog, &default_schema)
+        .with_option_extension(ClientOpts::default());
+
+    session_config.options_mut().catalog.information_schema = true;
+
+    let ctx: SessionContext = SessionContext::new_with_config(session_config);
+    register_catalogs_from_schemas(&ctx, schemas, default_catalog, log.clone())?;
 
     for f in regclass_udfs(&ctx) {
         ctx.register_udf(f);
@@ -673,18 +757,50 @@ pub async fn get_base_session_context(schema_path: &String, default_catalog:Stri
     register_scalar_regclass_oid(&ctx)?;
     register_scalar_pg_tablespace_location(&ctx)?;
     register_scalar_format_type(&ctx)?;
+    ctx.register_udtf("regclass_oid", Arc::new(crate::user_functions::RegClassOidFunc));
+    register_current_schema(&ctx)?;
+    register_current_schemas(&ctx)?;
+    register_scalar_format_type(&ctx)?;
+    register_scalar_pg_get_expr(&ctx)?;
+    register_scalar_pg_get_partkeydef(&ctx)?;
+    register_scalar_pg_table_is_visible(&ctx)?;
+    register_scalar_pg_get_userbyid(&ctx)?;
+    register_scalar_pg_encoding_to_char(&ctx)?;
+    register_scalar_array_to_string(&ctx)?;
+    register_pg_get_one(&ctx)?;
+    register_pg_get_array(&ctx)?;
+    register_oidvector_to_array(&ctx)?;
+    register_array_agg(&ctx)?;
+    register_pg_get_statisticsobjdef_columns(&ctx)?;
+    register_pg_relation_is_publishable(&ctx)?;
+    register_has_database_privilege(&ctx)?;
+    register_has_schema_privilege(&ctx)?;
+    register_pg_postmaster_start_time(&ctx)?;
+    register_pg_relation_size(&ctx)?;
+    register_pg_total_relation_size(&ctx)?;
+    register_scalar_pg_age(&ctx)?;
+    register_scalar_pg_is_in_recovery(&ctx)?;
+    register_scalar_txid_current(&ctx)?;
+    register_quote_ident(&ctx)?;
+    register_translate(&ctx)?;
+    register_pg_available_extension_versions(&ctx)?;
+    register_pg_get_keywords(&ctx)?;
+    register_pg_get_viewdef(&ctx)?;
+    register_pg_get_function_arguments(&ctx)?;
+    register_pg_get_function_result(&ctx)?;
+    register_pg_get_function_sqlbody(&ctx)?;
+    register_pg_get_indexdef(&ctx)?;
+    register_pg_get_triggerdef(&ctx)?;
+    register_pg_get_ruledef(&ctx)?;
+    register_encode(&ctx)?;
+    register_upper(&ctx)?;
+    register_version_fn(&ctx)?;
+
 
     let catalogs = ctx.catalog_names();
     println!("registered catalogs: {:?}", catalogs);
 
-    println!("Current catalog: {}", default_catalog);
-
-
-    // register additional databases is done by callers
-    // TODO: how to add a new db
-    // TODO: how to add new columns in pg_catalog
-    // ctx.sql("INSERT INTO pg_catalog.pg_class (relname, relnamespace, relkind, reltuples, reltype) VALUES ('users', 'crm', 'r', 3, 0);").await?;
-
+    // println!("Current catalog: {}", default_catalog);
 
     Ok((ctx, log))
 }
