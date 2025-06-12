@@ -46,26 +46,25 @@ datafusion_pg_catalog = { git = "https://github.com/ybrs/pg_catalog" }
 
 ## Example Usage
 
-Register the catalog tables into your existing `SessionContext` and add your own tables:
-
+Create a `SessionContext` preloaded with the catalog tables and register your own schema:
 ```rust
-use datafusion::execution::context::SessionContext;
-use arrow::datatypes::DataType;
-use pg_catalog_rs::{register_pg_catalog_tables, register_table};
+use std::collections::BTreeMap;
+use pg_catalog_rs::{get_base_session_context, register_user_database, register_user_tables, ColumnDef};
 
-let ctx = SessionContext::new();
-register_pg_catalog_tables(&ctx).await?;
+let (ctx, _log) = get_base_session_context(
+    &"pg_catalog_data/pg_schema".to_string(),
+    "pgtry".to_string(),
+    "public".to_string(),
+).await?;
 
-register_table(
-    &ctx,
-    "crm",
-    "crm",
-    "users",
-    vec![
-        ("id", DataType::Int32, false),
-        ("name", DataType::Utf8, true),
-    ],
-)?;
+register_user_database(&ctx, "crm").await?;
+
+let mut cols = BTreeMap::new();
+cols.insert(
+    "id".to_string(),
+    ColumnDef { col_type: "int".to_string(), nullable: false },
+);
+register_user_tables(&ctx, "users", vec![cols]).await?;
 ```
 
 Then you can run queries like:
@@ -98,6 +97,29 @@ let result = dispatch_query(&ctx, "SELECT * FROM pg_class", |ctx, sql| async mov
 - Works with the [`pgwire`](https://github.com/sunng87/pgwire) crate for wire protocol emulation
 - Can be combined with custom `MemTable` or real storage backends (Parquet, Arrow, etc.)
 - Designed to be embedded in hybrid SQL engines or compatibility layers
+
+---
+
+## Embedding the pgwire Server
+
+Launch a PostgreSQL-compatible endpoint using the provided helper:
+
+```rust
+use std::sync::Arc;
+use pg_catalog_rs::{get_base_session_context, start_server};
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let (ctx, _log) = get_base_session_context(
+        &"pg_catalog_data/pg_schema".to_string(),
+        "pgtry".to_string(),
+        "public".to_string(),
+    ).await?;
+
+    start_server(Arc::new(ctx), "127.0.0.1:5433", "pgtry", "public", None).await?;
+    Ok(())
+}
+```
 
 ---
 
