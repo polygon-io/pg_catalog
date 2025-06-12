@@ -72,7 +72,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_register_table() -> Result<()> {
-        let mut config = datafusion::execution::context::SessionConfig::new()
+        let config = datafusion::execution::context::SessionConfig::new()
             .with_default_catalog_and_schema("crm", "crm");
         let ctx = SessionContext::new_with_config(config);
 

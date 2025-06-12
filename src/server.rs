@@ -31,7 +31,7 @@ use arrow::array::{BooleanArray, Int32Array, Int64Array, LargeStringArray, ListA
 use arrow::record_batch::RecordBatch;
 use datafusion::execution::context::SessionContext;
 
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit};
+use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 
 use datafusion::{
     logical_expr::{create_udf, Volatility, ColumnarValue},

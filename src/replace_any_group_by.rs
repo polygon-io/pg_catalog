@@ -1,23 +1,7 @@
-use sqlparser::ast::*;
 use sqlparser::dialect::PostgreSqlDialect;
 use sqlparser::parser::Parser;
 use std::collections::HashSet;
 use std::ops::ControlFlow;
-use arrow::datatypes::DataType as ArrowDataType;
-use datafusion::logical_expr::{create_udf, ColumnarValue, ScalarUDF, Volatility};
-use datafusion::scalar::ScalarValue;
-
-use sqlparser::ast::{Expr, Function, FunctionArg, FunctionArgExpr, FunctionArguments, Ident, ObjectName, ObjectNamePart, Value};
-use datafusion::prelude::SessionContext;
-use sqlparser::ast::*;
-use sqlparser::tokenizer::Span;
-use sqlparser::ast::{
-    visit_expressions_mut, visit_statements_mut, ValueWithSpan,
-};
-use sqlparser::ast::{Statement};
-use sqlparser::ast::OneOrManyWithParens;
-use datafusion::error::{DataFusionError, Result};
-
 
 /// Add columns referenced inside `= ANY(...)` predicates to the
 /// `GROUP BY` clause so queries grouping on such expressions pass
@@ -48,7 +32,7 @@ pub fn rewrite_group_by_for_any(sql: &str) -> String {
 
     let mut touched = false;
 
-    visit_statements_mut(&mut statements, |stmt| {
+    let _cf = visit_statements_mut(&mut statements, |stmt| {
         if let Statement::Query(q) = stmt {
             if let SetExpr::Select(sel) = q.body.as_mut() {
                 // only deal with GROUP BY <exprs>, ignore GROUP BY ALL etc.

@@ -31,12 +31,13 @@ pub async fn register_user_tables(
     table_name: &str,
     columns: Vec<BTreeMap<String, ColumnDef>>,
 ) -> DFResult<()> {
-    let df = ctx.sql("SELECT 1 FROM pg_catalog.pg_class WHERE relname='$relname'")
+    let df = ctx.sql("SELECT 1 FROM pg_catalog.pg_class WHERE relname=$relname")
         .await?.with_param_values(vec![
            ("relname", ScalarValue::from(table_name))
         ])?;
 
     if df.count().await? > 0 {
+        println!("table already exists {:}?", table_name);
         return Ok(());
     }
 
