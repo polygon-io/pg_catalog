@@ -2,10 +2,17 @@
 # Uses sqlglot to parse each query so we can see which features are required.
 # Helps track unsupported operations.
 
+import logging
+import os
 import yaml
 import sqlglot
 from sqlglot import Expression
 from sqlglot.expressions import Anonymous, Substring, Func, Cast
+
+logging.basicConfig(
+    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO)
+)
+logger = logging.getLogger(__name__)
 
 DEFINED_EXPRESSIONS = {
     'CASE',
@@ -43,9 +50,9 @@ def main(yaml_file):
             continue
         functions, casts = extract_function_from_sql(sql)
         if functions:
-            print(f"Query Functions {idx+1}: {functions}")
+            logger.info("Query Functions %s: %s", idx + 1, functions)
         if casts:
-            print(f"Query CASTS {idx+1}: {casts}")
+            logger.info("Query CASTS %s: %s", idx + 1, casts)
 
 if __name__ == "__main__":
     # sql = """
@@ -57,7 +64,7 @@ if __name__ == "__main__":
     # import ipdb; ipdb.set_trace()
     import sys
     if len(sys.argv) != 2:
-        print("Usage: python extract_functions.py queries.yaml")
+        logger.info("Usage: python extract_functions.py queries.yaml")
         exit(1)
 
     main(sys.argv[1])

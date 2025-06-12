@@ -2217,7 +2217,7 @@ mod tests {
             .as_any()
             .downcast_ref::<ListArray>()
             .unwrap();
-        println!("test_pg_get_array_subquery {:?}", list);
+        log::debug!("test_pg_get_array_subquery {:?}", list);
         let inner = list.value(0);
         let inner = inner.as_any().downcast_ref::<StringArray>().unwrap();
         assert_eq!(inner.value(0), "pg_constraint");

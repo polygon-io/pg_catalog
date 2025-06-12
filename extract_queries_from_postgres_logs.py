@@ -2,12 +2,19 @@
 # Outputs them to a YAML file for use in tests and analysis.
 # Useful for gathering real-world workload samples.
 
+import logging
+import os
 import re
 
 import sqlparse
 import yaml
 import sqlglot
 import hashlib
+
+logging.basicConfig(
+    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO)
+)
+logger = logging.getLogger(__name__)
 
 
 class LiteralString(str):
@@ -41,8 +48,8 @@ def normalize_sql(sql):
     try:
         return sqlglot.parse_one(sql, dialect="postgres").sql()
     except:
-        print(sql)
-        print("=====")
+        logger.error(sql)
+        logger.error("=====")
         raise
 
 def sql_hash(sql):
@@ -111,7 +118,7 @@ def extract_queries_from_log(log_file):
         query_hash = sql_hash(query_text)
 
         if query_hash in seen_hashes:
-            print("skipping query", query_hash)
+            logger.debug("skipping query %s", query_hash)
             continue
         seen_hashes.add(query_hash)
         pretty_query = sqlparse.format(query_text, reindent=True, keyword_case="upper").strip()
@@ -124,7 +131,7 @@ def extract_queries_from_log(log_file):
                 "expected": ""
             }
         except:
-            print(norm_query)
+            logger.error(norm_query)
             import ipdb; ipdb.set_trace()
             raise
         if "parameters" in entry:
@@ -148,4 +155,6 @@ if __name__ == "__main__":
     queries = extract_queries_from_log(input_log)
     save_queries_to_yaml(queries, output_yaml)
 
-    print(f"Extracted {len(queries)} unique, formatted queries into {output_yaml}")
+    logger.info(
+        "Extracted %s unique, formatted queries into %s", len(queries), output_yaml
+    )

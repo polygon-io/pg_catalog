@@ -1258,7 +1258,7 @@ mod tests {
     fn scalar_becomes_join() -> Result<()> {
         let q = "SELECT (SELECT 1) FROM t";
         let out = rewrite(q)?;
-        println!("scalar_becomes_join {:?}", out);
+        log::debug!("scalar_becomes_join {:?}", out);
         assert_eq!(out.converted, 1);
         assert!(out.sql.contains("WITH"));
         assert!(out.sql.contains("JOIN"));
@@ -1280,7 +1280,7 @@ mod tests {
     fn rewrite_equality_join() -> Result<()> {
         let q = "SELECT (SELECT max(b) FROM t2 WHERE t2.id = t1.id) FROM t1";
         let out = rewrite(q)?;
-        println!("rewrite_equality_join {:?}", out);
+        log::debug!("rewrite_equality_join {:?}", out);
         assert!(out.sql.contains("LEFT OUTER JOIN __cte1"));
         assert!(out.sql.contains("t1.id = __cte1.id"));
         Ok(())
@@ -1295,7 +1295,7 @@ mod tests {
                     AND  t2.val <> t1.val)
             FROM t1";
         let out = rewrite(q)?;
-        println!("rewrite_inequality_join {:?}", out);
+        log::debug!("rewrite_inequality_join {:?}", out);
 
         assert!(
                 out.sql.contains("t1.val <> __cte1.val")
@@ -1310,7 +1310,7 @@ mod tests {
     fn keeps_explicit_alias() -> Result<()> {
         let q = "SELECT (SELECT 1) AS answer";
         let out = rewrite(q)?;
-        println!("keeps_explicit_alias {:?}", out);
+        log::debug!("keeps_explicit_alias {:?}", out);
         assert!(out.sql.contains("answer"));      // alias survived
         Ok(())
     }
@@ -1319,7 +1319,7 @@ mod tests {
     fn synthesises_alias_when_missing() -> Result<()> {
         let q = "SELECT (SELECT 1)";
         let out = rewrite(q)?;
-        println!("synthesises_alias_when_missing {:?}", out);
+        log::debug!("synthesises_alias_when_missing {:?}", out);
         assert!(out.sql.contains("subq1"));       // our synthetic alias
         Ok(())
     }
@@ -1329,7 +1329,7 @@ mod tests {
         let q = "SELECT (SELECT 1 FROM t2 WHERE t2.id = t1.id AND t2.flag = 'Y') FROM t1";
         let out = rewrite(q)?;
 
-        println!("cte_strips_correlated_filters {:?} : ", out);
+        log::debug!("cte_strips_correlated_filters {:?} : ", out);
 
         let sql = out.sql;
     
@@ -1358,7 +1358,7 @@ mod tests {
     fn outer_only_predicate_removed() -> Result<()> {
         let q = "SELECT (SELECT 1 FROM t2 WHERE t1.flag) FROM t1";
         let out = rewrite(q)?;
-        println!("outer_only_predicate_removed {:?}", out);
+        log::debug!("outer_only_predicate_removed {:?}", out);
 
         assert!(
             !out.sql.contains("FROM t2 WHERE t1.flag"),
@@ -1375,7 +1375,7 @@ mod tests {
     fn correlated_with_second_alias() -> Result<()> {
         let q = "SELECT (SELECT 1 FROM t2 b WHERE b.id = j.id) FROM t1 i JOIN t1 j ON i.id = j.id";
         let out = rewrite(q)?;
-        println!("correlated_with_second_alias {:?}", out.sql);
+        log::debug!("correlated_with_second_alias {:?}", out.sql);
         assert!(out.sql.contains("j.id = __cte1.id"), "join predicate not using second alias");
         Ok(())
     }
@@ -1510,7 +1510,7 @@ mod tests {
         let out = rewrite(sql)?;
         let s   = out.sql;
         
-        println!("rewrite_eq_any_predicate {:?}", s);
+        log::debug!("rewrite_eq_any_predicate {:?}", s);
 
         // 1) we created a CTE
         assert!(s.starts_with("WITH __cte1"), "no CTE injected");
@@ -1543,7 +1543,7 @@ mod tests {
 
         let out = rewrite(sql)?;
         let rewritten = out.sql.to_lowercase();
-        println!("injects_group_by_for_mixed_projection: {:?}", rewritten);
+        log::debug!("injects_group_by_for_mixed_projection: {:?}", rewritten);
         // the synthetic GROUP BY must name *exactly* the plain column we projected
         assert!(
             rewritten.contains("group by pol.polname"),
@@ -1570,7 +1570,7 @@ mod tests {
 
         let out = rewrite(sql)?;
         let rewritten = out.sql.to_lowercase();
-        println!("injects_group_by_for_array_agg: {:?}", rewritten);
+        log::debug!("injects_group_by_for_array_agg: {:?}", rewritten);
         assert!(
             rewritten.contains("group by rolname"),
             "GROUP BY clause was not injected:\n{rewritten}"
@@ -1585,7 +1585,7 @@ mod tests {
 
         let out = rewrite(sql)?;
         let s = out.sql.clone();
-        println!("rewritten: {}", s);
+        log::debug!("rewritten: {}", s);
 
         assert!(s.contains("cls.oid = __cte1.adrelid"), "cls predicate not in JOIN");
         assert!(s.contains("attr.attnum = __cte1.adnum"), "attr predicate not in JOIN");

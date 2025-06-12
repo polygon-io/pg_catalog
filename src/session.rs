@@ -120,11 +120,11 @@ impl ExtensionOptions for ClientOpts {
 
     fn set(&mut self, key: &str, value: &str) -> datafusion::error::Result<()> {
         
-        println!("set key {:?}", key);
+        log::debug!("set key {:?}", key);
         match key {
             "application_name" => {
                 self.application_name = value.to_string();
-                println!("value is set!!!");
+                log::debug!("value is set!!!");
                 Ok(())
             }
             "datestyle" => {
@@ -246,19 +246,19 @@ pub fn print_params(params: &Vec<Option<Bytes>>) {
                 match bytes.len() {
                     4 => {
                         let v = u32::from_be_bytes(bytes[..4].try_into().unwrap());
-                        println!("param[{}] as u32: {}", i, v);
+                        log::debug!("param[{}] as u32: {}", i, v);
                     }
                     8 => {
                         let v = u64::from_be_bytes(bytes[..8].try_into().unwrap());
-                        println!("param[{}] as u64: {}", i, v);
+                        log::debug!("param[{}] as u64: {}", i, v);
                     }
                     _ => {
-                        println!("param[{}] raw bytes ({} bytes): {:?}", i, bytes.len(), bytes);
+                        log::debug!("param[{}] raw bytes ({} bytes): {:?}", i, bytes.len(), bytes);
                     }
                 }
             }
             None => {
-                println!("param[{}] is NULL", i);
+                log::debug!("param[{}] is NULL", i);
             }
         }
     }
@@ -293,7 +293,7 @@ pub fn rewrite_filters(sql: &str) -> datafusion::error::Result<(String, HashMap<
     let (sql, aliases) = alias_all_columns(&sql)?;
     let sql = rewrite_subquery_as_cte(&sql);
 
-    println!("before group by {}", sql);
+    log::debug!("before group by {}", sql);
     let sql = rewrite_group_by_for_any(&sql);
 
     return Ok((sql, aliases))
@@ -307,12 +307,12 @@ pub async fn execute_sql_inner(
     vec0: Option<Vec<Type>>,
 ) -> datafusion::error::Result<(Vec<RecordBatch>, Arc<Schema>)> {
 
-    println!("input sql {:?}", sql);
+    log::debug!("input sql {:?}", sql);
     
     let (sql, aliases) = rewrite_filters(&sql)?;
 
     let df = if let (Some(params), Some(types)) = (vec, vec0) {
-        println!("params {:?}", params);
+        log::debug!("params {:?}", params);
         print_params(&params);
 
         let mut scalars = Vec::new();
@@ -365,9 +365,9 @@ pub async fn execute_sql_inner(
         let df = ctx.sql(&sql).await?.with_param_values(scalars)?;
         df
     } else {
-        println!("final sql {:?}", sql);    
+        log::debug!("final sql {:?}", sql);
         let df = ctx.sql(&sql).await?;
-        println!("executed sql");
+        log::info!("executed sql");
         df
     };
 
@@ -409,9 +409,9 @@ pub async fn execute_sql(
     match execute_sql_inner(ctx, sql, vec, vec0).await {
         Ok(v) => Ok(v),
         Err(e) => {
-            println!("exec_error query: {:?}", sql);
-            println!("exec_error params: {:?}", params_for_log);
-            println!("exec_error error: {:?}", e);
+            log::error!("exec_error query: {:?}", sql);
+            log::error!("exec_error params: {:?}", params_for_log);
+            log::error!("exec_error error: {:?}", e);
             Err(e)
         }
     }
@@ -680,57 +680,16 @@ fn register_catalogs_from_schemas(ctx:&SessionContext, schemas: HashMap<String, 
             };
 
             let _ = catalog_provider.register_schema(&schema_name, schema_provider.clone());
-            println!("catalog/database: {:?} schema: {:?}", current_catalog, schema_name);
+            log::debug!("catalog/database: {:?} schema: {:?}", current_catalog, schema_name);
 
             for (table, (schema_ref, batches)) in tables {
-                println!("-- table {:?}", &table);
+                log::debug!("-- table {:?}", &table);
 
                 let wrapped = ObservableMemTable::new(table.clone(), schema_ref, log.clone(), batches);
                 schema_provider.register_table(table, Arc::new(wrapped))?;
             }
         }
     }
-    Ok(ctx)
-}
-
-
-pub async fn register_database_to_pg_catalog(ctx:&SessionContext) -> datafusion::error::Result<&SessionContext, DataFusionError> {
-    let df = ctx.sql("SELECT datname FROM pg_catalog.pg_database where datname='pgtry'").await?;
-    if df.count().await? == 0 {
-        let df = ctx.sql("INSERT INTO pg_catalog.pg_database (
-            oid,
-            datname,
-            datdba,
-            encoding,
-            datcollate,
-            datctype,
-            datistemplate,
-            datallowconn,
-            datconnlimit,
-            datfrozenxid,
-            datminmxid,
-            dattablespace,
-            datacl
-        ) VALUES (
-            27734,
-            'pgtry',
-            27735,
-            6,
-            'C',
-            'C',
-            false,
-            true,
-            -1,        
-            726,
-            1,
-            1663,
-            ARRAY['=Tc/dbuser', 'dbuser=CTc/dbuser']
-        );
-        ").await?;
-        df.show().await?;    
-    }
-    let df = ctx.sql("select datname from pg_catalog.pg_database").await?;
-    df.show().await?;
     Ok(ctx)
 }
 
@@ -798,7 +757,7 @@ pub async fn get_base_session_context(schema_path: &String, default_catalog:Stri
 
 
     let catalogs = ctx.catalog_names();
-    println!("registered catalogs: {:?}", catalogs);
+    log::info!("registered catalogs: {:?}", catalogs);
 
     // println!("Current catalog: {}", default_catalog);
 

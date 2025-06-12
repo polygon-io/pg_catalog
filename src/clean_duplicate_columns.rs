@@ -170,7 +170,7 @@ pub fn alias_all_columns(sql: &str) -> Result<(String, HashMap<String, String>)>
         .collect::<Vec<_>>()
         .join(" ");
 
-    println!("result: {:?} alias_map: {:?}", res, alias_map);
+    log::debug!("result: {:?} alias_map: {:?}", res, alias_map);
 
     Ok((res, alias_map))
 }

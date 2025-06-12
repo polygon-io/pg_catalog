@@ -178,7 +178,7 @@ pub fn print_execution_log(log:Arc<Mutex<Vec<ScanTrace>>>){
         })
     }).collect();
 
-    println!("{}", serde_json::to_string_pretty(&out).unwrap());
+    log::info!("{}", serde_json::to_string_pretty(&out).unwrap());
 }
 #[cfg(test)]
 mod tests {

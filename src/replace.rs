@@ -1686,7 +1686,7 @@ mod tests {
         let in_sql  = "SELECT array(SELECT rolname FROM pg_catalog.pg_roles ORDER BY 1)";
         let expect  = "SELECT pg_catalog.pg_get_array((SELECT rolname FROM pg_catalog.pg_roles ORDER BY 1))";
         let out_sql = rewrite_array_subquery(in_sql).unwrap();
-        println!("test_rewrite_array_subquery {}", out_sql);
+        log::debug!("test_rewrite_array_subquery {}", out_sql);
         assert_eq!(out_sql, expect);
 
         let in_sql = "select 1";

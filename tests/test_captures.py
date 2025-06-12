@@ -1,9 +1,16 @@
+import logging
+import os
 import subprocess
 import time
 import glob
 import yaml
 import psycopg
 import pytest
+
+logging.basicConfig(
+    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO)
+)
+logger = logging.getLogger(__name__)
 
 PORT = 5447
 CONN_STR = f"host=127.0.0.1 port={PORT} dbname=pgtry user=dbuser password=pencil sslmode=disable"
@@ -99,11 +106,16 @@ def replay_captured_queries(queries):
                 #   currently we don't check this and skip
                 continue
             for (expected_row, row) in zip(expected_results, results):
-                print("query", query)
-                print("row", row)
-                print("expected", expected_row)
+                logger.debug("query %s", query)
+                logger.debug("row %s", row)
+                logger.debug("expected %s", expected_row)
                 if row != expected_row:
-                    print("WARN: for query", query, "result: ", row, " and expected: ", expected_row, "are different")
+                    logger.warning(
+                        "WARN: for query %s result: %s and expected: %s are different",
+                        query,
+                        row,
+                        expected_row,
+                    )
                     assert(row == expected_row)
                     # import ipdb; ipdb.set_trace()
 
