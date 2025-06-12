@@ -38,50 +38,8 @@ use datafusion::{
     common::ScalarValue,
 };
 
-use crate::replace::{regclass_udfs};
 use crate::session::{execute_sql, ClientOpts};
 use crate::router::dispatch_query;
-use crate::user_functions::{
-    register_array_agg,
-    register_current_schema,
-    register_current_schemas,
-    register_pg_get_array,
-    register_oidvector_to_array,
-    register_pg_get_function_arguments,
-    register_pg_get_function_result,
-    register_pg_get_function_sqlbody,
-    register_pg_get_indexdef,
-    register_pg_get_triggerdef,
-    register_pg_get_ruledef,
-    register_pg_get_one,
-    register_pg_get_statisticsobjdef_columns,
-    register_pg_get_viewdef,
-    register_pg_get_keywords,
-    register_pg_available_extension_versions,
-    register_pg_postmaster_start_time,
-    register_pg_relation_is_publishable,
-    register_has_database_privilege,
-    register_has_schema_privilege,
-    register_pg_relation_size,
-    register_pg_total_relation_size,
-    register_quote_ident,
-    register_scalar_array_to_string,
-    register_scalar_format_type,
-    register_scalar_pg_age,
-    register_scalar_pg_encoding_to_char,
-    register_scalar_pg_get_expr,
-    register_scalar_pg_get_partkeydef,
-    register_scalar_pg_get_userbyid,
-    register_scalar_pg_is_in_recovery,
-    register_scalar_pg_table_is_visible,
-    register_scalar_pg_tablespace_location,
-    register_scalar_regclass_oid,
-    register_scalar_txid_current,
-    register_encode,
-    register_upper,
-    register_version_fn,
-    register_translate,
-};
 use tokio::net::TcpStream;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
@@ -89,7 +47,7 @@ use log;
 use sqlparser::dialect::PostgreSqlDialect;
 use sqlparser::parser::Parser;
 use sqlparser::ast::Statement;
-use crate::pg_catalog_helpers as pg_rs;
+
 
 /// PostgreSQL version reported to clients during startup and via `SHOW server_version`.
 pub const SERVER_VERSION: &str = "17.4.0";
@@ -1194,106 +1152,6 @@ pub async fn start_server(
         let (socket, _) = listener.accept().await?;
         if let Some(socket) = detect_gssencmode(socket).await {
             let ctx = base_ctx.clone();            
-            // public is schema ! catalog is the database.
-            if let Some(base_catalog) = base_ctx.catalog(default_catalog) {
-                println!("re-registering schema pg_catalog");
-                ctx.register_catalog(default_catalog, base_catalog.clone());
-            }
-
-            for f in regclass_udfs(&ctx) {
-                ctx.register_udf(f);
-            }
-            
-            ctx.register_udtf("regclass_oid", Arc::new(crate::user_functions::RegClassOidFunc));
-        
-            register_scalar_regclass_oid(&ctx)?;
-            register_scalar_pg_tablespace_location(&ctx)?;
-            register_current_schema(&ctx)?;
-            register_current_schemas(&ctx)?;
-            register_scalar_format_type(&ctx)?;
-            register_scalar_pg_get_expr(&ctx)?;
-            register_scalar_pg_get_partkeydef(&ctx)?;
-            register_scalar_pg_table_is_visible(&ctx)?;
-            register_scalar_pg_get_userbyid(&ctx)?;
-            register_scalar_pg_encoding_to_char(&ctx)?;
-            register_scalar_array_to_string(&ctx)?;
-            register_pg_get_one(&ctx)?;
-            register_pg_get_array(&ctx)?;
-            register_oidvector_to_array(&ctx)?;
-            register_array_agg(&ctx)?;
-            register_pg_get_statisticsobjdef_columns(&ctx)?;
-            register_pg_relation_is_publishable(&ctx)?;
-            register_has_database_privilege(&ctx)?;
-            register_has_schema_privilege(&ctx)?;
-            register_pg_postmaster_start_time(&ctx)?;
-            register_pg_relation_size(&ctx)?;
-            register_pg_total_relation_size(&ctx)?;
-            register_scalar_pg_age(&ctx)?;
-            register_scalar_pg_is_in_recovery(&ctx)?;
-            register_scalar_txid_current(&ctx)?;
-            register_quote_ident(&ctx)?;
-            register_translate(&ctx)?;
-            register_pg_available_extension_versions(&ctx)?;
-            register_pg_get_keywords(&ctx)?;
-            register_pg_get_viewdef(&ctx)?;
-            register_pg_get_function_arguments(&ctx)?;
-            register_pg_get_function_result(&ctx)?;
-            register_pg_get_function_sqlbody(&ctx)?;
-            register_pg_get_indexdef(&ctx)?;
-            register_pg_get_triggerdef(&ctx)?;
-            register_pg_get_ruledef(&ctx)?;
-            register_encode(&ctx)?;
-            register_upper(&ctx)?;
-            register_version_fn(&ctx)?;
-
-            let df = ctx.sql("SELECT datname FROM pg_catalog.pg_database where datname='pgtry'").await?;
-            if df.count().await? == 0 {
-                let df = ctx.sql("INSERT INTO pg_catalog.pg_database (
-                    oid,
-                    datname,
-                    datdba,
-                    encoding,
-                    datcollate,
-                    datctype,
-                    datistemplate,
-                    datallowconn,
-                    datconnlimit,
-                    datfrozenxid,
-                    datminmxid,
-                    dattablespace,
-                    datacl
-                ) VALUES (
-                    27734,
-                    'pgtry',
-                    27735,
-                    6,
-                    'C',
-                    'C',
-                    false,
-                    true,
-                    -1,
-                
-                    726,
-                    1,
-                    1663,
-                    ARRAY['=Tc/dbuser', 'dbuser=CTc/dbuser']
-                );
-                ").await?;
-
-                df.show().await?;
-    
-            }
-            let df = ctx.sql("select datname from pg_catalog.pg_database").await?;
-            df.show().await?;
-            
-            use pg_rs::ColumnDef;
-            let mut c1 = BTreeMap::new();
-            c1.insert("id".to_string(), ColumnDef { col_type: "int".to_string(), nullable: true });
-            let mut c2 = BTreeMap::new();
-            c2.insert("name".to_string(), ColumnDef { col_type: "text".to_string(), nullable: true });
-            pg_rs::register_user_tables(&ctx, "users", vec![c1, c2]).await?;
-
-
             let factory = Arc::new(DatafusionBackendFactory {
                 handler: Arc::new(DatafusionBackend::new(
                     Arc::clone(&ctx),

@@ -10,6 +10,23 @@ use datafusion::error::Result;
 
 /// Register a new datafusion memtable in the given catalog and schema.
 /// Creates the catalog or schema if it does not exist.
+/// Example: 
+/// ```
+///  register_table(
+///     &ctx,
+///     "crm",
+///     "crm",
+///     "users",
+///     vec![
+///         ("id", DataType::Int32, false),
+///         ("name", DataType::Utf8, true),
+///     ],
+/// )?;
+/// let _ = dispatch_query(&ctx, "SELECT 1", None, None, |_c, _q, _p, _t| {
+///     async { Ok((Vec::new(), Arc::new(Schema::empty()))) }
+/// })
+/// .await?;
+/// ```
 pub fn register_table(
     ctx: &SessionContext,
     catalog_name: &str,
