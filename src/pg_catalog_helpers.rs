@@ -113,12 +113,12 @@ pub async fn register_user_tables(
     table_name: &str,
     columns: Vec<BTreeMap<String, ColumnDef>>,
 ) -> DFResult<()> {
-    let df = ctx
-        .sql(&format!(
+    println!("registering user_tables");
+    let df = ctx.sql(&format!(
             "SELECT 1 FROM pg_catalog.pg_class WHERE relname='{}'",
             table_name.replace('\'', "''")
-        ))
-        .await?;
+        )).await?;
+
     if df.count().await? > 0 {
         return Ok(());
     }

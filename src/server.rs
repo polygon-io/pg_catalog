@@ -272,6 +272,7 @@ mod tests {
 
 
 impl DatafusionBackend {
+    
     pub fn new(ctx: Arc<SessionContext>, capture: Option<CaptureStore>) -> Self {
         Self {
             ctx,
@@ -1192,15 +1193,7 @@ pub async fn start_server(
     loop {
         let (socket, _) = listener.accept().await?;
         if let Some(socket) = detect_gssencmode(socket).await {
-
-            let mut session_config = datafusion::execution::context::SessionConfig::new()
-            .with_default_catalog_and_schema(default_catalog, default_schema)
-            .with_option_extension(ClientOpts::default());
-    
-            session_config.options_mut().catalog.information_schema = false;
-    
-            let ctx = Arc::new(SessionContext::new_with_config_rt(session_config, base_ctx.runtime_env().clone()));
-            
+            let ctx = base_ctx.clone();            
             // public is schema ! catalog is the database.
             if let Some(base_catalog) = base_ctx.catalog(default_catalog) {
                 println!("re-registering schema pg_catalog");
@@ -1253,7 +1246,6 @@ pub async fn start_server(
             register_upper(&ctx)?;
             register_version_fn(&ctx)?;
 
-            
             let df = ctx.sql("SELECT datname FROM pg_catalog.pg_database where datname='pgtry'").await?;
             if df.count().await? == 0 {
                 let df = ctx.sql("INSERT INTO pg_catalog.pg_database (

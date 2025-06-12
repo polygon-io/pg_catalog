@@ -9,9 +9,11 @@ use datafusion::catalog::SchemaProvider;
 
 use datafusion::catalog::memory::{MemoryCatalogProvider, MemorySchemaProvider};
 use datafusion::datasource::{MemTable};
+use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionContext;
 use arrow::record_batch::RecordBatch;
 
+use datafusion::execution::{SessionState, SessionStateBuilder};
 use serde::Deserialize;
 use serde_yaml;
 
@@ -615,21 +617,9 @@ fn build_table(def: TableDef) -> (SchemaRef, Vec<RecordBatch>) {
     (Arc::new(Schema::new(fields)), record_batches)
 }
 
-pub async fn get_base_session_context(schema_path: &String, default_catalog:String, default_schema:String) -> datafusion::error::Result<(SessionContext, Arc<Mutex<Vec<ScanTrace>>>)> {
-    let log: Arc<Mutex<Vec<ScanTrace>>> = Arc::new(Mutex::new(Vec::new()));
 
-    let schemas = parse_schema(schema_path.as_str());
-
-    let mut config = datafusion::execution::context::SessionConfig::new()
-        .with_default_catalog_and_schema(&default_catalog, &default_schema)
-        .with_option_extension(ClientOpts::default());
-
-    config.options_mut().catalog.information_schema = true;
-
-    let ctx = SessionContext::new_with_config(config);
-
-    for (catalog_name, schemas) in schemas {
-
+fn register_catalogs_from_schemas(ctx:&SessionContext, schemas: HashMap<String, HashMap<String, HashMap<String, (Arc<Schema>, Vec<RecordBatch>)>>>, default_catalog:String, log: Arc<Mutex<Vec<ScanTrace>>>) -> datafusion::error::Result<&SessionContext, DataFusionError> {
+    for (catalog_name, schemas) in schemas {        
         let current_catalog = if catalog_name == "public" {
             default_catalog.to_string()
         } else {
@@ -663,6 +653,22 @@ pub async fn get_base_session_context(schema_path: &String, default_catalog:Stri
             }
         }
     }
+    Ok(ctx)
+}
+
+
+pub async fn get_base_session_context(schema_path: &String, default_catalog:String, default_schema:String) -> datafusion::error::Result<(SessionContext, Arc<Mutex<Vec<ScanTrace>>>)> {
+    let log: Arc<Mutex<Vec<ScanTrace>>> = Arc::new(Mutex::new(Vec::new()));
+
+    let schemas = parse_schema(schema_path.as_str());
+    let mut session_config = datafusion::execution::context::SessionConfig::new()
+        .with_default_catalog_and_schema(&default_catalog, &default_schema)
+        .with_option_extension(ClientOpts::default());
+
+    session_config.options_mut().catalog.information_schema = true;
+
+    let ctx: SessionContext = SessionContext::new_with_config(session_config);
+    register_catalogs_from_schemas(&ctx, schemas, default_catalog, log.clone())?;
 
     for f in regclass_udfs(&ctx) {
         ctx.register_udf(f);
@@ -677,7 +683,7 @@ pub async fn get_base_session_context(schema_path: &String, default_catalog:Stri
     let catalogs = ctx.catalog_names();
     println!("registered catalogs: {:?}", catalogs);
 
-    println!("Current catalog: {}", default_catalog);
+    // println!("Current catalog: {}", default_catalog);
 
 
     // register additional databases is done by callers

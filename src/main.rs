@@ -56,21 +56,21 @@ async fn run() -> anyhow::Result<()> {
 
     let (ctx, log) = get_base_session_context(schema_path, default_catalog.clone(), default_schema.clone()).await?;
 
-    register_table(
-        &ctx,
-        "crm",
-        "crm",
-        "users",
-        vec![
-            ("id", DataType::Int32, false),
-            ("name", DataType::Utf8, true),
-        ],
-    )?;
+    // register_table(
+    //     &ctx,
+    //     "crm",
+    //     "crm",
+    //     "users",
+    //     vec![
+    //         ("id", DataType::Int32, false),
+    //         ("name", DataType::Utf8, true),
+    //     ],
+    // )?;
 
-    let _ = dispatch_query(&ctx, "SELECT 1", None, None, |_c, _q, _p, _t| {
-        async { Ok((Vec::new(), Arc::new(Schema::empty()))) }
-    })
-    .await?;
+    // let _ = dispatch_query(&ctx, "SELECT 1", None, None, |_c, _q, _p, _t| {
+    //     async { Ok((Vec::new(), Arc::new(Schema::empty()))) }
+    // })
+    // .await?;
 
     start_server(
         Arc::new(ctx),
