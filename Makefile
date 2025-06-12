@@ -5,11 +5,11 @@ run_postgresql:
 	./run-postgres.sh
 
 create_schema_yaml_files:
-        python schema.py generate pg_catalog_data/pg_schema
+	python schema.py generate pg_catalog_data/pg_schema
 
 create_schema_zip:
-        zip -r pg_schema.zip pg_catalog_data/pg_schema
+	zip -r pg_schema.zip pg_catalog_data/pg_schema
 
 
 dev_server:
-        RUST_LOG=info RUST_MIN_STACK=33554432 cargo run ./pg_schema.zip --default-catalog pgtry --default-schema pg_catalog --port 5444
+	RUST_LOG=info RUST_MIN_STACK=33554432 cargo run -- ./pg_schema.zip --default-catalog pgtry --default-schema pg_catalog --port 5444
