@@ -4,9 +4,9 @@
 use std::collections::BTreeMap;
 use std::env;
 use std::sync::Arc;
-use datafusion_pg_catalog::pg_catalog_helpers;
+use datafusion_pg_catalog::{pg_catalog_helpers, register_user_database};
 // use arrow::util::pretty;
-use datafusion_pg_catalog::{server::start_server, session::register_database_to_pg_catalog};
+use datafusion_pg_catalog::{server::start_server};
 use datafusion_pg_catalog::session::get_base_session_context;
 
 
@@ -56,7 +56,7 @@ async fn run() -> anyhow::Result<()> {
 
     let (ctx, log) = get_base_session_context(schema_path, default_catalog.clone(), default_schema.clone()).await?;
 
-    register_database_to_pg_catalog(&ctx).await?;
+    register_user_database(&ctx, "pgtry").await?;
     use pg_catalog_helpers::ColumnDef;
     let mut c1 = BTreeMap::new();
     c1.insert("id".to_string(), ColumnDef { col_type: "int".to_string(), nullable: true });

@@ -694,47 +694,6 @@ fn register_catalogs_from_schemas(ctx:&SessionContext, schemas: HashMap<String, 
 }
 
 
-pub async fn register_database_to_pg_catalog(ctx:&SessionContext) -> datafusion::error::Result<&SessionContext, DataFusionError> {
-    let df = ctx.sql("SELECT datname FROM pg_catalog.pg_database where datname='pgtry'").await?;
-    if df.count().await? == 0 {
-        let df = ctx.sql("INSERT INTO pg_catalog.pg_database (
-            oid,
-            datname,
-            datdba,
-            encoding,
-            datcollate,
-            datctype,
-            datistemplate,
-            datallowconn,
-            datconnlimit,
-            datfrozenxid,
-            datminmxid,
-            dattablespace,
-            datacl
-        ) VALUES (
-            27734,
-            'pgtry',
-            27735,
-            6,
-            'C',
-            'C',
-            false,
-            true,
-            -1,        
-            726,
-            1,
-            1663,
-            ARRAY['=Tc/dbuser', 'dbuser=CTc/dbuser']
-        );
-        ").await?;
-        df.show().await?;    
-    }
-    let df = ctx.sql("select datname from pg_catalog.pg_database").await?;
-    df.show().await?;
-    Ok(ctx)
-}
-
-
 pub async fn get_base_session_context(schema_path: &String, default_catalog:String, default_schema:String) -> datafusion::error::Result<(SessionContext, Arc<Mutex<Vec<ScanTrace>>>)> {
     let log: Arc<Mutex<Vec<ScanTrace>>> = Arc::new(Mutex::new(Vec::new()));
 

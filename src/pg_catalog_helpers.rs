@@ -1,4 +1,4 @@
-use datafusion::error::Result as DFResult;
+use datafusion::error::{DataFusionError, Result as DFResult};
 use serde::{Deserialize};
 use std::collections::BTreeMap;
 use datafusion::execution::context::SessionContext;
@@ -25,6 +25,50 @@ fn map_type_to_oid(t: &str) -> i32 {
         _ => 25, // default to text
     }
 }
+
+pub async fn register_user_database(ctx:&SessionContext, database_name:&str) -> DFResult<()> {
+    // let oid = NEXT_OID.fetch_add(1, Ordering::SeqCst);
+
+    let df = ctx.sql("SELECT datname FROM pg_catalog.pg_database where datname='pgtry'").await?;
+    if df.count().await? == 0 {
+        let df = ctx.sql("INSERT INTO pg_catalog.pg_database (
+            oid,
+            datname,
+            datdba,
+            encoding,
+            datcollate,
+            datctype,
+            datistemplate,
+            datallowconn,
+            datconnlimit,
+            datfrozenxid,
+            datminmxid,
+            dattablespace,
+            datacl
+        ) VALUES (
+            27734,
+            'pgtry',
+            27735,
+            6,
+            'C',
+            'C',
+            false,
+            true,
+            -1,        
+            726,
+            1,
+            1663,
+            ARRAY['=Tc/dbuser', 'dbuser=CTc/dbuser']
+        );
+        ").await?;
+        df.show().await?;    
+    }
+    let df = ctx.sql("select datname from pg_catalog.pg_database").await?;
+    df.show().await?;
+    Ok(())
+}
+
+
 
 pub async fn register_user_tables(
     ctx: &SessionContext,
