@@ -2,11 +2,17 @@
 # Connects using psycopg, extracts table definitions and rows, and writes them for use as test fixtures.
 # Included so the Rust code can run with a known catalog snapshot.
 
+import logging
+import os
+import sys
+import datetime
 import psycopg
 import yaml
-import sys
-import os
-import datetime
+
+logging.basicConfig(
+    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO)
+)
+logger = logging.getLogger(__name__)
 
 PG_TYPE_MAPPING = {
     "int2": "int",
@@ -93,11 +99,11 @@ def generate(output_dir):
     ensure_dir(output_dir)
 
     for schema_name in ["pg_catalog", "information_schema"]:
-        print(f"processing schema: {schema_name}")
+        logger.info("processing schema: %s", schema_name)
         objects = fetch_objects(conn, schema_name)
 
         for objname, relkind, description in objects:
-            print(f"  processing object: {objname}")
+            logger.info("  processing object: %s", objname)
             entry = {}
 
             if relkind == "r":  # Table
@@ -130,7 +136,7 @@ def generate(output_dir):
             with open(out_file, "w") as f:
                 yaml.dump(wrapped, f, sort_keys=False, allow_unicode=True)
 
-    print(f"Saved schemas to {output_dir}")
+    logger.info("Saved schemas to %s", output_dir)
 
 def find_schema_file(output_dir, table_name):
     for fname in os.listdir(output_dir):
@@ -142,7 +148,7 @@ def show(output_dir, specific_table=None):
     if specific_table:
         file = find_schema_file(output_dir, specific_table)
         if not file:
-            print(f"Table {specific_table} not found in {output_dir}")
+            logger.error("Table %s not found in %s", specific_table, output_dir)
             sys.exit(1)
         files = [file]
     else:
@@ -154,33 +160,38 @@ def show(output_dir, specific_table=None):
 
         base = os.path.basename(fpath)
         schema_table = base.replace(".yaml", "").replace("__", ".")
-        print(f"{schema_table}:")
-        print(f"  type: {entry.get('type', 'unknown')}")
-        print(f"  rows: {len(entry.get('rows', []))}")
+        logger.info("%s:", schema_table)
+        logger.info("  type: %s", entry.get('type', 'unknown'))
+        logger.info("  rows: %s", len(entry.get('rows', [])))
 
         if "description" in entry:
-            print(f"  description: {entry['description']}")
+            logger.info("  description: %s", entry['description'])
 
         if specific_table:
-            print("  schema:")
+            logger.info("  schema:")
             for col, typ in entry.get("schema", {}).items():
-                print(f"    {col}: {typ} ({entry.get('pg_types', {}).get(col, '')})")
+                logger.info(
+                    "    %s: %s (%s)",
+                    col,
+                    typ,
+                    entry.get('pg_types', {}).get(col, ""),
+                )
 
             if "view_sql" in entry:
-                print("\n  view_sql:")
-                print(entry["view_sql"])
+                logger.info("\n  view_sql:")
+                logger.info(entry["view_sql"])
 
             example_rows = entry.get("rows", [])[:2]
             if example_rows:
-                print("\n  example rows:")
+                logger.info("\n  example rows:")
                 for row in example_rows:
-                    print(f"    {row}")
+                    logger.info("    %s", row)
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print(f"Usage:")
-        print(f"  {sys.argv[0]} generate output_dir")
-        print(f"  {sys.argv[0]} show output_dir [table_name]")
+        logger.info("Usage:")
+        logger.info("  %s generate output_dir", sys.argv[0])
+        logger.info("  %s show output_dir [table_name]", sys.argv[0])
         sys.exit(1)
 
     cmd = sys.argv[1]
@@ -196,5 +207,5 @@ if __name__ == "__main__":
         table_name = sys.argv[3] if len(sys.argv) > 3 else None
         show(output_dir, table_name)
     else:
-        print(f"Unknown command {cmd}")
+        logger.error("Unknown command %s", cmd)
         sys.exit(1)

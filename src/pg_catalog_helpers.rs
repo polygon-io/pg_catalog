@@ -37,7 +37,7 @@ pub async fn register_user_tables(
         ])?;
 
     if df.count().await? > 0 {
-        println!("table already exists {:}?", table_name);
+        log::info!("table already exists {:}?", table_name);
         return Ok(());
     }
 

@@ -400,7 +400,7 @@ fn arrow_to_pg_type(dt: &DataType) -> Type {
         // anything else – send as plain text so the client can at
         // least see something instead of us mangling it away
         other => {
-            eprintln!("arrow_to_pg_type: mapping {other:?} to TEXT");
+            log::warn!("arrow_to_pg_type: mapping {other:?} to TEXT");
             Type::TEXT
         }
     }
@@ -728,7 +728,7 @@ impl SimpleQueryHandler for DatafusionBackend {
     where
         C: ClientInfo + Unpin + Send + Sync,
     {
-        println!("query handler");
+        log::debug!("query handler");
 
         let trimmed = query.trim();
         let lowercase = trimmed.to_lowercase();
@@ -767,7 +767,7 @@ impl SimpleQueryHandler for DatafusionBackend {
 
         let user = client.metadata().get(pgwire::api::METADATA_USER).cloned();
         let database = client.metadata().get(pgwire::api::METADATA_DATABASE).cloned();
-        println!("database: {:?} {:?}", database, user);
+        log::debug!("database: {:?} {:?}", database, user);
 
         let _ = self.register_current_database(client);
         let _ = self.register_session_user(client);
@@ -874,7 +874,11 @@ impl ExtendedQueryHandler for DatafusionBackend {
         C: ClientInfo + Unpin + Send + Sync,
     {
 
-        println!("query start extended {:?} {:?}", portal.statement.statement.as_str(), portal.parameters);
+        log::debug!(
+            "query start extended {:?} {:?}",
+            portal.statement.statement.as_str(),
+            portal.parameters
+        );
 
         let sql_trim = portal.statement.statement.trim();
         let lowercase = sql_trim.to_lowercase();
@@ -980,7 +984,7 @@ impl ExtendedQueryHandler for DatafusionBackend {
     where
         C: ClientInfo + Unpin + Send + Sync,
     {
-        println!("do_describe_statement");
+        log::debug!("do_describe_statement");
         
         let sql_trim = stmt.statement.trim();
         let lowercase = sql_trim.to_lowercase();
@@ -1010,7 +1014,7 @@ impl ExtendedQueryHandler for DatafusionBackend {
             .await
             .map_err(|e| PgWireError::ApiError(Box::new(e)))?;
 
-        println!("do_describe_statement {:?}", schema);
+        log::debug!("do_describe_statement {:?}", schema);
 
 
         if results.is_empty() {
@@ -1020,7 +1024,7 @@ impl ExtendedQueryHandler for DatafusionBackend {
         let batch = &results[0];
         let param_types = stmt.parameter_types.clone();
         let fields = batch_to_field_info(batch, &Format::UnifiedBinary)?;
-        println!("return from do_describe {:?}", fields);
+        log::debug!("return from do_describe {:?}", fields);
         Ok(DescribeStatementResponse::new(param_types, fields))
     }
 
@@ -1033,7 +1037,7 @@ impl ExtendedQueryHandler for DatafusionBackend {
         C: ClientInfo + Unpin + Send + Sync,
     {
 
-        println!("do_describe_portal");
+        log::debug!("do_describe_portal");
         let sql_trim = portal.statement.statement.trim();
         let lowercase = sql_trim.to_lowercase();
 
@@ -1121,10 +1125,10 @@ async fn detect_gssencmode(mut socket: TcpStream) -> Option<TcpStream> {
             let request_code = u32::from_be_bytes([buf[4], buf[5], buf[6], buf[7]]);
             if request_code == 80877104 {
                 if let Err(e) = socket.read_exact(&mut buf).await {
-                    println!("Failed to consume GSSAPI request: {:?}", e);
+                    log::error!("Failed to consume GSSAPI request: {:?}", e);
                 }
                 if let Err(e) = socket.write_all(b"N").await {
-                    println!("Failed to send rejection message: {:?}", e);
+                    log::error!("Failed to send rejection message: {:?}", e);
                 }
             }
         }
@@ -1143,7 +1147,7 @@ pub async fn start_server(
 ) -> anyhow::Result<()> {
 
     let listener = TcpListener::bind(addr).await?;
-    println!("Listening on {}", addr);
+    log::info!("Listening on {}", addr);
 
     let capture_store = capture.map(CaptureStore::new);
 
@@ -1161,7 +1165,7 @@ pub async fn start_server(
 
             tokio::spawn(async move {
                 if let Err(e) = process_socket(socket, None, factory).await {
-                    eprintln!("connection error: {:?}", e);
+                    log::error!("connection error: {:?}", e);
                 }
             });
 
