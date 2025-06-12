@@ -45,10 +45,6 @@ jobs:
 
       - name: Create schema zip
         run: make create_schema_zip
-
-        - name: Create schema zip
-          run: make create_schema_zip
-
       - name: Run cargo tests
         run: cargo test --all --verbose
 
