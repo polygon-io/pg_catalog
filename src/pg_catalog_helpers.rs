@@ -29,7 +29,11 @@ fn map_type_to_oid(t: &str) -> i32 {
 pub async fn register_user_database(ctx:&SessionContext, database_name:&str) -> DFResult<()> {
     // let oid = NEXT_OID.fetch_add(1, Ordering::SeqCst);
 
-    let df = ctx.sql("SELECT datname FROM pg_catalog.pg_database where datname='pgtry'").await?;
+    let df: datafusion::prelude::DataFrame = ctx.sql("SELECT datname FROM pg_catalog.pg_database where datname=$database_name")
+        .await?
+        .with_param_values(vec![
+           ("database_name", ScalarValue::from(database_name))
+        ])?;
     if df.count().await? == 0 {
         let df = ctx.sql("INSERT INTO pg_catalog.pg_database (
             oid,
