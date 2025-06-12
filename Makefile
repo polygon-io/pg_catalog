@@ -12,4 +12,4 @@ create_schema_zip:
 
 
 dev_server:
-	RUST_LOG=info RUST_MIN_STACK=33554432 cargo run ./pg_schema.zip --default-catalog pgtry --default-schema pg_catalog --port 5444
+	RUST_LOG=info RUST_MIN_STACK=33554432 cargo run -- ./pg_schema.zip --default-catalog pgtry --default-schema pg_catalog --port 5444
