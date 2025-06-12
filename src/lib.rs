@@ -13,8 +13,6 @@ pub mod replace_any_group_by;
 pub mod router;
 pub mod user_functions;
 pub mod pg_catalog_helpers;
-pub mod simple_logger;
-
 // Re-export all public functions from pg_catalog_helpers for convenience.
 pub use pg_catalog_helpers::*;
 // Re-export dispatch_query at crate root for convenience.

@@ -8,7 +8,7 @@ use datafusion_pg_catalog::pg_catalog_helpers;
 // use arrow::util::pretty;
 use datafusion_pg_catalog::{server::start_server, session::register_database_to_pg_catalog};
 use datafusion_pg_catalog::session::get_base_session_context;
-use datafusion_pg_catalog::simple_logger;
+
 
 async fn run() -> anyhow::Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -79,7 +79,8 @@ async fn run() -> anyhow::Result<()> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    simple_logger::init();
+    env_logger::init();
+
     if let Err(e) = run().await {
         log::error!("server crashed: {:?}", e);
     }
