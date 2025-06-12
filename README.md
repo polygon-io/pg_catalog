@@ -116,8 +116,28 @@ async fn main() -> anyhow::Result<()> {
         "public".to_string(),
     ).await?;
 
-    start_server(Arc::new(ctx), "127.0.0.1:5433", "pgtry", "public", None).await?;
+start_server(Arc::new(ctx), "127.0.0.1:5433", "pgtry", "public", None).await?;
     Ok(())
+}
+```
+
+---
+
+## Using with an Existing Server
+
+If you already expose your own SQL server you can integrate `pg_catalog_rs` without
+starting the bundled pgwire endpoint. Build a `SessionContext` and register your
+tables, then call [`dispatch_query`](src/router.rs) from your handler. Catalog
+queries will be executed internally and all other statements are forwarded.
+
+```rust
+use pg_catalog_rs::router::dispatch_query;
+
+async fn handle_request(ctx: &SessionContext, sql: &str) -> DFResult<Vec<RecordBatch>> {
+    let (batches, _schema) = dispatch_query(ctx, sql, None, None, |ctx, sql| async move {
+        ctx.sql(sql).await?.collect().await
+    }).await?;
+    Ok(batches)
 }
 ```
 
