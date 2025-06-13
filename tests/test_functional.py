@@ -4,16 +4,20 @@
 import os
 import time
 import subprocess
+import shutil
 import psycopg
 import pytest
 
 CONN_STR = "host=127.0.0.1 port=5444 dbname=pgtry user=dbuser password=pencil sslmode=disable"
 
 @pytest.fixture(scope="module")
-def server():
+def server(tmp_path_factory):
+    zip_dir = tmp_path_factory.mktemp("schema")
+    zip_path = zip_dir / "schema.zip"
+    shutil.make_archive(str(zip_path.with_suffix("")), "zip", "pg_catalog_data/pg_schema")
     proc = subprocess.Popen([
         "cargo", "run", "--quiet", "--",
-        "pg_catalog_data/pg_schema",
+        str(zip_path),
         "--default-catalog", "pgtry",
         "--default-schema", "public",
         "--host", "127.0.0.1",

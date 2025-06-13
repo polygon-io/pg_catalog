@@ -45,6 +45,8 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
+      - name: Create schema zip
+        run: make create_schema_zip
       - name: Run cargo tests
         run: cargo test --all --verbose
 

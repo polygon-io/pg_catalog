@@ -2,6 +2,12 @@ use datafusion_pg_catalog::{dispatch_query, get_base_session_context, start_serv
 use datafusion::execution::context::SessionContext;
 use arrow::datatypes::Schema;
 use std::sync::{Arc, Mutex};
+use std::fs::File;
+use std::io::Read;
+use std::io::Write as IoWrite;
+use std::path::Path;
+use zip::write::FileOptions;
+use zip::ZipWriter;
 
 #[tokio::test]
 async fn test_dispatch_query_public() -> datafusion::error::Result<()> {
@@ -24,12 +30,32 @@ async fn test_dispatch_query_public() -> datafusion::error::Result<()> {
 
 #[tokio::test]
 async fn test_get_base_session_context_public() -> datafusion::error::Result<()> {
+    let dir = tempfile::tempdir().unwrap();
+    let zip_path = dir.path().join("schema.zip");
+    create_zip(zip_path.as_path());
     let _ = get_base_session_context(
-        &"pg_catalog_data/pg_schema".to_string(),
+        &zip_path.to_str().unwrap().to_string(),
         "pgtry".to_string(),
         "public".to_string(),
     ).await?;
     Ok(())
+}
+
+fn create_zip(path: &Path) {
+    let file = File::create(path).unwrap();
+    let mut zip = ZipWriter::new(file);
+    let options = FileOptions::default();
+    for entry in std::fs::read_dir("pg_catalog_data/pg_schema").unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().and_then(|s| s.to_str()) != Some("yaml") {
+            continue;
+        }
+        let mut contents = String::new();
+        File::open(&path).unwrap().read_to_string(&mut contents).unwrap();
+        zip.start_file(path.file_name().unwrap().to_str().unwrap(), options).unwrap();
+        zip.write_all(contents.as_bytes()).unwrap();
+    }
+    zip.finish().unwrap();
 }
 
 #[test]

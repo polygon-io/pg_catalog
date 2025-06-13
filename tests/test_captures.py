@@ -1,6 +1,7 @@
 import logging
 import os
 import subprocess
+import shutil
 import time
 import glob
 import yaml
@@ -16,10 +17,13 @@ PORT = 5447
 CONN_STR = f"host=127.0.0.1 port={PORT} dbname=pgtry user=dbuser password=pencil sslmode=disable"
 
 @pytest.fixture(scope="module")
-def server():
+def server(tmp_path_factory):
+    zip_dir = tmp_path_factory.mktemp("schema")
+    zip_path = zip_dir / "schema.zip"
+    shutil.make_archive(str(zip_path.with_suffix("")), "zip", "pg_catalog_data/pg_schema")
     proc = subprocess.Popen([
         "cargo", "run", "--quiet", "--",
-        "pg_catalog_data/pg_schema",
+        str(zip_path),
         "--default-catalog", "pgtry",
         "--default-schema", "pg_catalog",
         "--host", "127.0.0.1",
