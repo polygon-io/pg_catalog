@@ -1,4 +1,6 @@
 name: CI
+permissions:
+  contents: write
 
 on:
   pull_request:
@@ -59,4 +61,17 @@ jobs:
         with:
           name: tarpaulin-report
           path: cobertura.xml
+
+      - name: Zip schema files
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: zip -r postgres-schema-nightly.zip pg_catalog_data/pg_schema
+
+      - name: Upload schema to release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: schema-nightly-${{ github.run_id }}
+          name: postgres-schema-nightly
+          prerelease: true
+          files: postgres-schema-nightly.zip
 
