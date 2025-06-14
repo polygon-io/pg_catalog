@@ -152,7 +152,7 @@ mod tests {
     #[tokio::test]
     async fn test_register_user_tables_dynamic() -> DFResult<()> {
         let (ctx, _) = get_base_session_context(
-            &"pg_catalog_data/pg_schema".to_string(),
+            Some("pg_catalog_data/pg_schema"),
             "pgtry".to_string(),
             "public".to_string(),
         )
@@ -191,7 +191,7 @@ mod tests {
     #[tokio::test]
     async fn test_register_user_tables_idempotent() -> DFResult<()> {
         let (ctx, _) = get_base_session_context(
-            &"pg_catalog_data/pg_schema".to_string(),
+            Some("pg_catalog_data/pg_schema"),
             "pgtry".to_string(),
             "public".to_string(),
         )

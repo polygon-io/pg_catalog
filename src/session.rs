@@ -14,7 +14,7 @@ use serde_yaml;
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::Path;
-use std::io::Read;
+use std::io::{Read, Cursor};
 use std::sync::{Arc, Mutex};
 use zip::ZipArchive;
 use pgwire::api::Type;
@@ -88,6 +88,8 @@ use bytes::Bytes;
 
 use datafusion::scalar::ScalarValue;
 use datafusion::common::{config_err, config::ConfigEntry};
+
+static SCHEMA_ZIP: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/pg_catalog_data/postgres-schema-nightly.zip"));
 use datafusion::common::config::{ConfigExtension, ExtensionOptions};
 use crate::db_table::{map_pg_type, ObservableMemTable, ScanTrace};
 use crate::replace_any_group_by::rewrite_group_by_for_any;
@@ -421,17 +423,24 @@ pub async fn execute_sql(
 
 
 fn parse_schema(
-    schema_path: &str,
+    schema_path: Option<&str>,
 ) -> HashMap<String, HashMap<String, HashMap<String, (SchemaRef, Vec<RecordBatch>)>>> {
-    let path = Path::new(schema_path);
-    if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("zip") {
-        parse_schema_zip(schema_path)
-    } else if path.is_file() {
-        parse_schema_file(schema_path)
-    } else if path.is_dir() {
-        parse_schema_dir(schema_path)
+    if let Some(schema_path) = schema_path {
+        if schema_path.is_empty() {
+            return parse_schema_zip_bytes(SCHEMA_ZIP);
+        }
+        let path = Path::new(schema_path);
+        if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("zip") {
+            parse_schema_zip(schema_path)
+        } else if path.is_file() {
+            parse_schema_file(schema_path)
+        } else if path.is_dir() {
+            parse_schema_dir(schema_path)
+        } else {
+            panic!("schema_path {} is neither a file nor a directory", schema_path);
+        }
     } else {
-        panic!("schema_path {} is neither a file nor a directory", schema_path);
+        parse_schema_zip_bytes(SCHEMA_ZIP)
     }
 }
 
@@ -447,6 +456,27 @@ fn parse_schema_zip(
 ) -> HashMap<String, HashMap<String, HashMap<String, (SchemaRef, Vec<RecordBatch>)>>> {
     let file = fs::File::open(path).expect("Failed to open schema zip file");
     let mut archive = ZipArchive::new(file).expect("Failed to read zip file");
+    let mut all = HashMap::new();
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i).expect("Invalid zip entry");
+        if !entry.name().ends_with(".yaml") {
+            continue;
+        }
+        let mut contents = String::new();
+        entry
+            .read_to_string(&mut contents)
+            .expect("Failed to read zip entry");
+        let parsed = parse_schema_contents(&contents);
+        merge_schema_maps(&mut all, parsed);
+    }
+    all
+}
+
+fn parse_schema_zip_bytes(
+    bytes: &[u8],
+) -> HashMap<String, HashMap<String, HashMap<String, (SchemaRef, Vec<RecordBatch>)>>> {
+    let reader = Cursor::new(bytes);
+    let mut archive = ZipArchive::new(reader).expect("Failed to read zip bytes");
     let mut all = HashMap::new();
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i).expect("Invalid zip entry");
@@ -730,10 +760,10 @@ fn register_catalogs_from_schemas(ctx:&SessionContext, schemas: HashMap<String, 
 }
 
 
-pub async fn get_base_session_context(schema_path: &String, default_catalog:String, default_schema:String) -> datafusion::error::Result<(SessionContext, Arc<Mutex<Vec<ScanTrace>>>)> {
+pub async fn get_base_session_context(schema_path: Option<&str>, default_catalog:String, default_schema:String) -> datafusion::error::Result<(SessionContext, Arc<Mutex<Vec<ScanTrace>>>)> {
     let log: Arc<Mutex<Vec<ScanTrace>>> = Arc::new(Mutex::new(Vec::new()));
 
-    let schemas = parse_schema(schema_path.as_str());
+    let schemas = parse_schema(schema_path);
     let mut session_config = datafusion::execution::context::SessionConfig::new()
         .with_default_catalog_and_schema(&default_catalog, &default_schema)
         .with_option_extension(ClientOpts::default());

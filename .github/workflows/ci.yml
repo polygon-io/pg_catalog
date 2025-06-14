@@ -47,6 +47,8 @@ jobs:
 
       - name: Create schema zip
         run: make create_schema_zip
+      - name: Copy schema into crate
+        run: cp pg_schema.zip pg_catalog_data/postgres-schema-nightly.zip
       - name: Run cargo tests
         run: cargo test --all --verbose
 

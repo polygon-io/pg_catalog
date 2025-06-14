@@ -14,3 +14,4 @@ cobertura.xml
 llm_fix_patch_plus.py
 merge_main.py
 fetch_and_checkout.sh
+pg_catalog_data/postgres-schema-nightly.zip

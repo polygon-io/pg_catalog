@@ -34,7 +34,17 @@ async fn test_get_base_session_context_public() -> datafusion::error::Result<()>
     let zip_path = dir.path().join("schema.zip");
     create_zip(zip_path.as_path());
     let _ = get_base_session_context(
-        &zip_path.to_str().unwrap().to_string(),
+        Some(zip_path.to_str().unwrap()),
+        "pgtry".to_string(),
+        "public".to_string(),
+    ).await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_get_base_session_context_embedded() -> datafusion::error::Result<()> {
+    let _ = get_base_session_context(
+        None,
         "pgtry".to_string(),
         "public".to_string(),
     ).await?;
