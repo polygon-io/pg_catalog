@@ -52,8 +52,14 @@ jobs:
       - name: Run cargo tests
         run: cargo test --all --verbose
 
+      - name: Build example
+        run: cargo build --manifest-path example/Cargo.toml
+
       - name: Run python tests
-        run: pytest -s
+        run: pytest -s tests
+
+      - name: Run example tests
+        run: pytest -s example/tests
 
       - name: Run rust coverage
         run: |
