@@ -52,7 +52,7 @@ use std::collections::BTreeMap;
 use pg_catalog_rs::{get_base_session_context, register_user_database, register_user_tables, ColumnDef};
 
 let (ctx, _log) = get_base_session_context(
-    &"pg_catalog_data/pg_schema".to_string(),
+    Some("pg_catalog_data/pg_schema"),
     "pgtry".to_string(),
     "public".to_string(),
 ).await?;
@@ -111,7 +111,7 @@ use pg_catalog_rs::{get_base_session_context, start_server};
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let (ctx, _log) = get_base_session_context(
-        &"pg_catalog_data/pg_schema".to_string(),
+        Some("pg_catalog_data/pg_schema"),
         "pgtry".to_string(),
         "public".to_string(),
     ).await?;

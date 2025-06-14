@@ -54,7 +54,7 @@ async fn run() -> anyhow::Result<()> {
         .cloned();
 
 
-    let (ctx, log) = get_base_session_context(schema_path, default_catalog.clone(), default_schema.clone()).await?;
+    let (ctx, log) = get_base_session_context(Some(schema_path), default_catalog.clone(), default_schema.clone()).await?;
 
     register_user_database(&ctx, "pgtry").await?;
     use pg_catalog_helpers::ColumnDef;
