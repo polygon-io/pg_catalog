@@ -1,7 +1,7 @@
 import os
 import subprocess
 
-EXAMPLE_DIR = os.path.join(os.path.dirname(__file__), "..", "example")
+EXAMPLE_DIR = os.path.join(os.path.dirname(__file__), "..")
 
 
 def run_example(query: str) -> str:
