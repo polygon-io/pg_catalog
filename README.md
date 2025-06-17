@@ -49,7 +49,10 @@ datafusion_pg_catalog = { git = "https://github.com/ybrs/pg_catalog" }
 Create a `SessionContext` preloaded with the catalog tables and register your own schema:
 ```rust
 use std::collections::BTreeMap;
-use pg_catalog_rs::{get_base_session_context, register_user_database, register_user_tables, ColumnDef};
+use pg_catalog_rs::{
+    get_base_session_context, register_user_database, register_schema,
+    register_user_tables, ColumnDef,
+};
 
 let (ctx, _log) = get_base_session_context(
     Some("pg_catalog_data/pg_schema"),
@@ -58,13 +61,14 @@ let (ctx, _log) = get_base_session_context(
 ).await?;
 
 register_user_database(&ctx, "crm").await?;
+register_schema(&ctx, "crm", "public").await?;
 
 let mut cols = BTreeMap::new();
 cols.insert(
     "id".to_string(),
     ColumnDef { col_type: "int".to_string(), nullable: false },
 );
-register_user_tables(&ctx, "users", vec![cols]).await?;
+register_user_tables(&ctx, "crm", "public", "users", vec![cols]).await?;
 ```
 
 Then you can run queries like:
