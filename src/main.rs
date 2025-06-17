@@ -57,12 +57,13 @@ async fn run() -> anyhow::Result<()> {
     let (ctx, log) = get_base_session_context(Some(schema_path), default_catalog.clone(), default_schema.clone()).await?;
 
     register_user_database(&ctx, "pgtry").await?;
+    pg_catalog_helpers::register_schema(&ctx, "pgtry", "public").await?;
     use pg_catalog_helpers::ColumnDef;
     let mut c1 = BTreeMap::new();
     c1.insert("id".to_string(), ColumnDef { col_type: "int".to_string(), nullable: true });
     let mut c2 = BTreeMap::new();
     c2.insert("name".to_string(), ColumnDef { col_type: "text".to_string(), nullable: true });
-    pg_catalog_helpers::register_user_tables(&ctx, "users", vec![c1, c2]).await?;
+    pg_catalog_helpers::register_user_tables(&ctx, "pgtry", "public", "users", vec![c1, c2]).await?;
 
     start_server(
         Arc::new(ctx),

@@ -2,9 +2,11 @@ use datafusion::error::{DataFusionError, Result as DFResult};
 use serde::{Deserialize};
 use std::collections::BTreeMap;
 use datafusion::execution::context::SessionContext;
-use datafusion::{    
+use datafusion::{
     common::ScalarValue,
 };
+use arrow::array::Int32Array;
+use arrow::array::StringArray;
 
 use std::sync::atomic::{AtomicI32, Ordering};
 
@@ -35,7 +37,7 @@ pub async fn register_user_database(ctx:&SessionContext, database_name:&str) -> 
            ("database_name", ScalarValue::from(database_name))
         ])?;
     if df.count().await? == 0 {
-        let df = ctx.sql("INSERT INTO pg_catalog.pg_database (
+        let df = ctx.sql(&format!("INSERT INTO pg_catalog.pg_database (
             oid,
             datname,
             datdba,
@@ -51,7 +53,7 @@ pub async fn register_user_database(ctx:&SessionContext, database_name:&str) -> 
             datacl
         ) VALUES (
             27734,
-            'pgtry',
+            '{}',
             27735,
             6,
             'C',
@@ -63,12 +65,35 @@ pub async fn register_user_database(ctx:&SessionContext, database_name:&str) -> 
             1,
             1663,
             ARRAY['=Tc/dbuser', 'dbuser=CTc/dbuser']
-        );
-        ").await?;
-        df.show().await?;    
+        );",
+            database_name.replace('\'', "''")
+        )).await?;
+        df.collect().await?;
     }
     let df = ctx.sql("select datname from pg_catalog.pg_database").await?;
     df.show().await?;
+    Ok(())
+}
+
+pub async fn register_schema(
+    ctx: &SessionContext,
+    _database_name: &str,
+    schema_name: &str,
+) -> DFResult<()> {
+    let df = ctx
+        .sql("SELECT 1 FROM pg_catalog.pg_namespace WHERE nspname=$schema")
+        .await?
+        .with_param_values(vec![("schema", ScalarValue::from(schema_name))])?;
+
+    if df.count().await? == 0 {
+        let oid = NEXT_OID.fetch_add(1, Ordering::SeqCst);
+        let sql = format!(
+            "INSERT INTO pg_catalog.pg_namespace (oid, nspname, nspowner, nspacl) VALUES ({oid}, '{}', 27735, NULL)",
+            schema_name.replace('\'', "''")
+        );
+        ctx.sql(&sql).await?.collect().await?;
+    }
+
     Ok(())
 }
 
@@ -76,13 +101,15 @@ pub async fn register_user_database(ctx:&SessionContext, database_name:&str) -> 
 
 pub async fn register_user_tables(
     ctx: &SessionContext,
+    _database_name: &str,
+    schema_name: &str,
     table_name: &str,
     columns: Vec<BTreeMap<String, ColumnDef>>,
 ) -> DFResult<()> {
-    let df = ctx.sql("SELECT 1 FROM pg_catalog.pg_class WHERE relname=$relname")
-        .await?.with_param_values(vec![
-           ("relname", ScalarValue::from(table_name))
-        ])?;
+    let df = ctx
+        .sql("SELECT 1 FROM pg_catalog.pg_class WHERE relname=$relname")
+        .await?
+        .with_param_values(vec![("relname", ScalarValue::from(table_name))])?;
 
     if df.count().await? > 0 {
         log::info!("table already exists {:}?", table_name);
@@ -91,6 +118,22 @@ pub async fn register_user_tables(
 
     let table_oid = NEXT_OID.fetch_add(1, Ordering::SeqCst);
     let type_oid = NEXT_OID.fetch_add(1, Ordering::SeqCst);
+
+    let ns_df = ctx
+        .sql("SELECT oid FROM pg_catalog.pg_namespace WHERE nspname=$schema")
+        .await?
+        .with_param_values(vec![("schema", ScalarValue::from(schema_name))])?;
+    let ns_batches = ns_df.collect().await?;
+    let schema_oid = if ns_batches.is_empty() || ns_batches[0].num_rows() == 0 {
+        return Err(DataFusionError::Execution("schema not found".to_string()));
+    } else {
+        let arr = ns_batches[0]
+            .column(0)
+            .as_any()
+            .downcast_ref::<arrow::array::Int32Array>()
+            .unwrap();
+        arr.value(0)
+    };
 
     if ctx
         .sql(&format!(
@@ -104,7 +147,7 @@ pub async fn register_user_tables(
         let sql = format!(
             "INSERT INTO pg_catalog.pg_class \
                  (oid, relname, relnamespace, relkind, reltuples, reltype, relispartition) \
-                 VALUES ({table_oid},'{}',2200,'r',0,{type_oid}, false)",
+                 VALUES ({table_oid},'{}',{schema_oid},'r',0,{type_oid}, false)",
             table_name.replace('\'', "''")
         );
         ctx.sql(&sql).await?.collect().await?;
@@ -158,6 +201,8 @@ mod tests {
         )
         .await?;
 
+        register_schema(&ctx, "pgtry", "myschema").await?;
+
         let mut c1 = BTreeMap::new();
         c1.insert(
             "id".to_string(),
@@ -169,12 +214,24 @@ mod tests {
             ColumnDef { col_type: "text".to_string(), nullable: true },
         );
 
-        register_user_tables(&ctx, "contacts", vec![c1, c2]).await?;
+        register_user_tables(&ctx, "pgtry", "myschema", "contacts", vec![c1, c2]).await?;
 
         let df = ctx
             .sql("SELECT relname FROM pg_catalog.pg_class WHERE relname='contacts'")
             .await?;
         assert_eq!(df.count().await?, 1);
+
+        let df = ctx
+            .sql("SELECT nspname FROM pg_catalog.pg_namespace n JOIN pg_catalog.pg_class c ON n.oid=c.relnamespace WHERE c.relname='contacts'")
+            .await?;
+        let batches = df.collect().await?;
+        let schema_name = batches[0]
+            .column(0)
+            .as_any()
+            .downcast_ref::<arrow::array::StringArray>()
+            .unwrap()
+            .value(0);
+        assert_eq!(schema_name, "myschema");
 
         let df = ctx
             .sql(
@@ -197,6 +254,8 @@ mod tests {
         )
         .await?;
 
+        register_schema(&ctx, "pgtry", "myschema").await?;
+
         let mut c1 = BTreeMap::new();
         c1.insert(
             "id".to_string(),
@@ -208,9 +267,9 @@ mod tests {
             ColumnDef { col_type: "text".to_string(), nullable: true },
         );
 
-        register_user_tables(&ctx, "contacts", vec![c1.clone(), c2.clone()]).await?;
+        register_user_tables(&ctx, "pgtry", "myschema", "contacts", vec![c1.clone(), c2.clone()]).await?;
         // call again to ensure idempotency
-        register_user_tables(&ctx, "contacts", vec![c1, c2]).await?;
+        register_user_tables(&ctx, "pgtry", "myschema", "contacts", vec![c1, c2]).await?;
 
         let df = ctx
             .sql("SELECT relname FROM pg_catalog.pg_class WHERE relname='contacts'")
@@ -226,6 +285,42 @@ mod tests {
             .await?;
         let batches = df.collect().await?;
         assert_eq!(batches[0].num_rows(), 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_register_schema() -> DFResult<()> {
+        let (ctx, _) = get_base_session_context(
+            Some("pg_catalog_data/pg_schema"),
+            "pgtry".to_string(),
+            "public".to_string(),
+        )
+        .await?;
+
+        register_schema(&ctx, "pgtry", "custom").await?;
+
+        let df = ctx
+            .sql("SELECT nspname FROM pg_catalog.pg_namespace WHERE nspname='custom'")
+            .await?;
+        assert_eq!(df.count().await?, 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_register_user_database() -> DFResult<()> {
+        let (ctx, _) = get_base_session_context(
+            Some("pg_catalog_data/pg_schema"),
+            "pgtry".to_string(),
+            "public".to_string(),
+        )
+        .await?;
+
+        register_user_database(&ctx, "crm").await?;
+
+        let df = ctx
+            .sql("SELECT datname FROM pg_catalog.pg_database WHERE datname='crm'")
+            .await?;
+        assert_eq!(df.count().await?, 1);
         Ok(())
     }
 }
