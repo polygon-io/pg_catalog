@@ -15,6 +15,7 @@ use std::sync::Arc;
 use arrow::record_batch::RecordBatch;
 use arrow::datatypes::Schema;
 use datafusion::execution::context::SessionContext;
+use datafusion::execution::FunctionRegistry;
 
 use crate::session::{execute_sql, ClientOpts};
 use bytes::Bytes;
@@ -184,6 +185,48 @@ fn object_is_catalog(ctx: &SessionContext, name: &ObjectName) -> bool {
     }
 }
 
+/// Determine if the function belongs to `pg_catalog` or `information_schema`.
+fn function_is_catalog(ctx: &SessionContext, name: &ObjectName) -> bool {
+    let parts: Vec<String> = name
+        .0
+        .iter()
+        .filter_map(|p| p.as_ident().map(|i| i.value.clone()))
+        .collect();
+
+    match parts.as_slice() {
+        [schema, func] => {
+            let full = format!("{schema}.{func}");
+            (ctx.udf(&full).is_ok()
+                || ctx.udaf(&full).is_ok()
+                || ctx.table_function(&full).is_ok()
+                || ctx.udwf(&full).is_ok())
+                && (schema.eq_ignore_ascii_case("pg_catalog")
+                    || schema.eq_ignore_ascii_case("information_schema"))
+        }
+        [func] => {
+            ["pg_catalog", "information_schema"]
+                .iter()
+                .any(|schema| {
+                    let full = format!("{schema}.{func}");
+                    (ctx.udf(&full).is_ok()
+                        || ctx.udaf(&full).is_ok()
+                        || ctx.table_function(&full).is_ok()
+                        || ctx.udwf(&full).is_ok())
+                })
+        }
+        [_, schema, func] => {
+            let full = format!("{schema}.{func}");
+            (ctx.udf(&full).is_ok()
+                || ctx.udaf(&full).is_ok()
+                || ctx.table_function(&full).is_ok()
+                || ctx.udwf(&full).is_ok())
+                && (schema.eq_ignore_ascii_case("pg_catalog")
+                    || schema.eq_ignore_ascii_case("information_schema"))
+        }
+        _ => false,
+    }
+}
+
 /// Returns `true` if the table factor contains catalog tables.
 fn factor_has_catalog(ctx: &SessionContext, factor: &TableFactor) -> bool {
     match factor {
@@ -245,10 +288,25 @@ fn query_has_catalog(ctx: &SessionContext, query: &Query) -> bool {
 
 /// Inspect a [`Statement`] and return true if it touches catalog tables.
 fn statement_has_catalog(ctx: &SessionContext, stmt: &Statement) -> bool {
-    match stmt {
-        Statement::Query(q) => query_has_catalog(ctx, q),
-        _ => false,
+    use sqlparser::ast::{visit_expressions, Expr};
+    use std::ops::ControlFlow;
+
+    if matches!(stmt, Statement::Query(q) if query_has_catalog(ctx, q)) {
+        return true;
     }
+
+    let mut found = false;
+    let _ = visit_expressions(stmt, |expr| {
+        if let Expr::Function(func) = expr {
+            if function_is_catalog(ctx, &func.name) {
+                found = true;
+                return ControlFlow::Break(());
+            }
+        }
+        ControlFlow::Continue(())
+    });
+
+    found
 }
 
 /// Parse the SQL string and check whether it references catalog tables.
@@ -292,6 +350,7 @@ where
 mod tests {
     use super::*;
     use crate::register_table::register_table;
+    use crate::user_functions::register_version_fn;
     use arrow::datatypes::DataType;
     use std::sync::{Arc, Mutex};
 
@@ -402,6 +461,46 @@ mod tests {
         let types = vec![Type::INT4];
         let _ = dispatch_query(&ctx, "SELECT * FROM users WHERE id=$1", Some(params.clone()), Some(types), handler).await?;
         assert_eq!(*captured.lock().unwrap(), Some(params));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_catalog_function_internal() -> datafusion::error::Result<()> {
+        let ctx = SessionContext::new();
+        register_version_fn(&ctx)?;
+
+        let called = Arc::new(Mutex::new(false));
+        let called_clone = called.clone();
+        let handler = move |_ctx: &SessionContext, _sql: &str, _p, _t| {
+            let called_clone = called_clone.clone();
+            async move {
+                *called_clone.lock().unwrap() = true;
+                Ok((Vec::new(), Arc::new(Schema::empty())))
+            }
+        };
+
+        let _ = dispatch_query(&ctx, "SELECT pg_catalog.version()", None, None, handler).await?;
+        assert!(!*called.lock().unwrap());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dispatch_unqualified_catalog_function_internal() -> datafusion::error::Result<()> {
+        let ctx = SessionContext::new();
+        register_version_fn(&ctx)?;
+
+        let called = Arc::new(Mutex::new(false));
+        let called_clone = called.clone();
+        let handler = move |_ctx: &SessionContext, _sql: &str, _p, _t| {
+            let called_clone = called_clone.clone();
+            async move {
+                *called_clone.lock().unwrap() = true;
+                Ok((Vec::new(), Arc::new(Schema::empty())))
+            }
+        };
+
+        let _ = dispatch_query(&ctx, "SELECT version()", None, None, handler).await?;
+        assert!(!*called.lock().unwrap());
         Ok(())
     }
 }
