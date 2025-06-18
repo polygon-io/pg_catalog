@@ -371,7 +371,7 @@ pub async fn execute_sql_inner(
     } else {
         log::debug!("final sql {:?}", sql);
         let df = ctx.sql(&sql).await?;
-        log::info!("executed sql");
+        // log::debug!("executed sql");
         df
     };
 
@@ -768,7 +768,8 @@ pub async fn get_base_session_context(schema_path: Option<&str>, default_catalog
         .with_default_catalog_and_schema(&default_catalog, &default_schema)
         .with_option_extension(ClientOpts::default());
 
-    session_config.options_mut().catalog.information_schema = true;
+    // This should be false, otherwise datafusion uses it's own inf schema
+    session_config.options_mut().catalog.information_schema = false;
 
     let ctx: SessionContext = SessionContext::new_with_config(session_config);
     register_catalogs_from_schemas(&ctx, schemas, default_catalog, log.clone())?;

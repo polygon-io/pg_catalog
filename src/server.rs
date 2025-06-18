@@ -164,71 +164,6 @@ pub struct DatafusionBackend {
     capture: Option<CaptureStore>,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use arrow::array::{ArrayRef, BooleanArray, Int32Array};
-    use arrow::datatypes::{Field, Schema};
-    use futures::StreamExt;
-
-    #[test]
-    fn test_batch_to_row_stream_types_and_nulls() {
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("flag", DataType::Boolean, true),
-            Field::new("num", DataType::Int32, true),
-        ]));
-        let batch = RecordBatch::try_new(
-            schema,
-            vec![
-                Arc::new(BooleanArray::from(vec![Some(true), None])) as ArrayRef,
-                Arc::new(Int32Array::from(vec![Some(42), None])) as ArrayRef,
-            ],
-        )
-        .unwrap();
-
-        let info = batch_to_field_info(&batch, &Format::UnifiedText).unwrap();
-        assert_eq!(info[0].datatype(), &Type::BOOL);
-        assert_eq!(info[1].datatype(), &Type::INT4);
-
-        let rows = futures::executor::block_on(
-            batch_to_row_stream(&batch, Arc::new(info)).collect::<Vec<_>>(),
-        );
-        assert_eq!(rows.len(), 2);
-
-        let row0 = rows[0].as_ref().unwrap();
-        assert_eq!(row0.field_count, 2);
-        let buf = &row0.data;
-        assert_eq!(&buf[0..4], &1i32.to_be_bytes());
-        assert_eq!(buf[4], b't');
-        assert_eq!(&buf[5..9], &2i32.to_be_bytes());
-        assert_eq!(&buf[9..11], b"42");
-
-        let row1 = rows[1].as_ref().unwrap();
-        let buf = &row1.data;
-        assert_eq!(&buf[0..4], &(-1i32).to_be_bytes());
-        assert_eq!(&buf[4..8], &(-1i32).to_be_bytes());
-    }
-
-    #[test]
-    fn test_arrow_to_pg_type() {
-        assert_eq!(arrow_to_pg_type(&DataType::Boolean), Type::BOOL);
-        assert_eq!(arrow_to_pg_type(&DataType::Int32), Type::INT4);
-        assert_eq!(arrow_to_pg_type(&DataType::Int64), Type::INT8);
-        assert_eq!(arrow_to_pg_type(&DataType::Int16), Type::INT2);
-        assert_eq!(arrow_to_pg_type(&DataType::Utf8), Type::TEXT);
-        assert_eq!(arrow_to_pg_type(&DataType::Utf8View), Type::TEXT);
-        assert_eq!(arrow_to_pg_type(&DataType::LargeUtf8), Type::TEXT);
-        assert_eq!(arrow_to_pg_type(&DataType::Float32), Type::FLOAT4);
-        assert_eq!(arrow_to_pg_type(&DataType::Float64), Type::FLOAT8);
-    }
-
-    #[test]
-    fn test_server_version_constant() {
-        assert_eq!(SERVER_VERSION, "17.4.0");
-    }
-}
-
-
 impl DatafusionBackend {
     
     pub fn new(ctx: Arc<SessionContext>, capture: Option<CaptureStore>) -> Self {
@@ -1137,12 +1072,11 @@ async fn detect_gssencmode(mut socket: TcpStream) -> Option<TcpStream> {
     Some(socket)
 }
 
-
 pub async fn start_server(
     base_ctx: Arc<SessionContext>,
     addr: &str,
-    default_catalog: &str,
-    default_schema: &str,
+    _default_catalog: &str,
+    _default_schema: &str,
     capture: Option<std::path::PathBuf>,
 ) -> anyhow::Result<()> {
 
@@ -1170,5 +1104,70 @@ pub async fn start_server(
             });
 
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use arrow::array::{ArrayRef, BooleanArray, Int32Array};
+    use arrow::datatypes::{Field, Schema};
+    use futures::StreamExt;
+
+    #[test]
+    fn test_batch_to_row_stream_types_and_nulls() {
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("flag", DataType::Boolean, true),
+            Field::new("num", DataType::Int32, true),
+        ]));
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(BooleanArray::from(vec![Some(true), None])) as ArrayRef,
+                Arc::new(Int32Array::from(vec![Some(42), None])) as ArrayRef,
+            ],
+        )
+        .unwrap();
+
+        let info = batch_to_field_info(&batch, &Format::UnifiedText).unwrap();
+        assert_eq!(info[0].datatype(), &Type::BOOL);
+        assert_eq!(info[1].datatype(), &Type::INT4);
+
+        let rows = futures::executor::block_on(
+            batch_to_row_stream(&batch, Arc::new(info)).collect::<Vec<_>>(),
+        );
+        assert_eq!(rows.len(), 2);
+
+        let row0 = rows[0].as_ref().unwrap();
+        assert_eq!(row0.field_count, 2);
+        let buf = &row0.data;
+        assert_eq!(&buf[0..4], &1i32.to_be_bytes());
+        assert_eq!(buf[4], b't');
+        assert_eq!(&buf[5..9], &2i32.to_be_bytes());
+        assert_eq!(&buf[9..11], b"42");
+
+        let row1 = rows[1].as_ref().unwrap();
+        let buf = &row1.data;
+        assert_eq!(&buf[0..4], &(-1i32).to_be_bytes());
+        assert_eq!(&buf[4..8], &(-1i32).to_be_bytes());
+    }
+
+    #[test]
+    fn test_arrow_to_pg_type() {
+        assert_eq!(arrow_to_pg_type(&DataType::Boolean), Type::BOOL);
+        assert_eq!(arrow_to_pg_type(&DataType::Int32), Type::INT4);
+        assert_eq!(arrow_to_pg_type(&DataType::Int64), Type::INT8);
+        assert_eq!(arrow_to_pg_type(&DataType::Int16), Type::INT2);
+        assert_eq!(arrow_to_pg_type(&DataType::Utf8), Type::TEXT);
+        assert_eq!(arrow_to_pg_type(&DataType::Utf8View), Type::TEXT);
+        assert_eq!(arrow_to_pg_type(&DataType::LargeUtf8), Type::TEXT);
+        assert_eq!(arrow_to_pg_type(&DataType::Float32), Type::FLOAT4);
+        assert_eq!(arrow_to_pg_type(&DataType::Float64), Type::FLOAT8);
+    }
+
+    #[test]
+    fn test_server_version_constant() {
+        assert_eq!(SERVER_VERSION, "17.4.0");
     }
 }

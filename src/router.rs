@@ -16,6 +16,7 @@ use arrow::record_batch::RecordBatch;
 use arrow::datatypes::Schema;
 use datafusion::execution::context::SessionContext;
 use datafusion::execution::FunctionRegistry;
+use log::debug;
 
 use crate::session::{execute_sql, ClientOpts};
 use bytes::Bytes;
@@ -339,9 +340,11 @@ where
     Fut: std::future::Future<Output = datafusion::error::Result<(Vec<RecordBatch>, Arc<Schema>)>>,
 {
     if is_catalog_query(ctx, sql)? {
+        debug!("is_catalog_query True");
         let qualified = qualify_catalog_tables(ctx, sql)?;
         execute_sql(ctx, &qualified, params, param_types).await
     } else {
+        debug!("is_catalog_query False");
         handler(ctx, sql, params, param_types).await
     }
 }
