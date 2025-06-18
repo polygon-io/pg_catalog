@@ -93,7 +93,7 @@ static SCHEMA_ZIP: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/
 use datafusion::common::config::{ConfigExtension, ExtensionOptions};
 use crate::db_table::{map_pg_type, ObservableMemTable, ScanTrace};
 use crate::replace_any_group_by::rewrite_group_by_for_any;
-
+use df_subquery_udf::rewrite_query;
 
 #[derive(Clone, Debug)]
 pub struct ClientOpts {
@@ -314,6 +314,8 @@ pub async fn execute_sql_inner(
     log::debug!("input sql {:?}", sql);
     
     let (sql, aliases) = rewrite_filters(&sql)?;
+
+    let (sql, temp_udfs) = rewrite_query(&sql, &mut ctx.clone()).await?;
 
     let df = if let (Some(params), Some(types)) = (vec, vec0) {
         log::debug!("params {:?}", params);
