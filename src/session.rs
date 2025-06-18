@@ -400,6 +400,13 @@ pub async fn execute_sql_inner(
 
     let (results, schema) = remove_virtual_system_columns(&sql, results, schema);
 
+
+    // after the execution of the query we do a cleanup for added udfs
+    for name in temp_udfs {
+        ctx.deregister_udf(&name);
+    }
+
+
     Ok((results, schema))
 
 
