@@ -131,7 +131,9 @@ def replay_captured_queries(queries):
 def test_captured_queries(server):
     capture_files = sorted(glob.glob("captures/*.yaml"))
     assert capture_files, "no capture files found"
+    
     for file in capture_files:
+        print("running capture", file)
         with open(file) as f:
             data = yaml.safe_load(f)
             replay_captured_queries(data)

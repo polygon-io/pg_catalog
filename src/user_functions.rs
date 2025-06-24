@@ -534,7 +534,7 @@ pub fn register_current_schema(ctx: &SessionContext) -> Result<()> {
         {
             std::sync::Arc::new(move |_args| {
                 Ok(ColumnarValue::Scalar(ScalarValue::Utf8(Some(
-                    "public".to_string(),
+                    "main".to_string(),
                 ))))
             })
         },        
@@ -551,9 +551,11 @@ pub fn register_current_schemas(ctx: &SessionContext) -> Result<()> {
     use std::sync::Arc;
 
     let fun = |_args: &[ColumnarValue]| -> Result<ColumnarValue> {
+    
+        println!("current_schemas called !!!");
         let mut builder = ListBuilder::new(StringBuilder::new());
         builder.values().append_value("pg_catalog");
-        builder.values().append_value("public");
+        builder.values().append_value("main");
         builder.append(true);
         Ok(ColumnarValue::Array(Arc::new(builder.finish()) as ArrayRef))
     };

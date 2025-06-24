@@ -617,4 +617,4 @@ def test_postmaster_time_zone_lowercase(server):
             "SELECT round(EXTRACT(EPOCH FROM pg_postmaster_start_time() AT TIME ZONE 'utc')) AS startup_time"
         )
         row = cur.fetchone()
-        assert isinstance(row[0], int)
+        assert isinstance(int(row[0]), int)

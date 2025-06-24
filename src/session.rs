@@ -734,10 +734,12 @@ fn build_table(def: TableDef) -> (SchemaRef, Vec<RecordBatch>) {
 
 fn register_catalogs_from_schemas(ctx:&SessionContext, schemas: HashMap<String, HashMap<String, HashMap<String, (Arc<Schema>, Vec<RecordBatch>)>>>, default_catalog:String, log: Arc<Mutex<Vec<ScanTrace>>>) -> datafusion::error::Result<&SessionContext, DataFusionError> {
     for (catalog_name, schemas) in schemas {        
-        let current_catalog = if catalog_name == "public" {
+        // "public" is the *database* name we used in exports
+        // so we copy the schema/tables under that database to default_catalog/database  
+        let current_catalog = if catalog_name.clone() == "public" {
             default_catalog.to_string()
         } else {
-            catalog_name
+            catalog_name.clone()
         };
 
         let catalog_provider = if let Some(catalog_provider) = ctx.catalog(&current_catalog){
@@ -796,7 +798,7 @@ pub async fn get_base_session_context(schema_path: Option<&str>, default_catalog
     register_scalar_format_type(&ctx)?;
     ctx.register_udtf("regclass_oid", Arc::new(crate::user_functions::RegClassOidFunc));
     register_current_schema(&ctx)?;
-    register_current_schemas(&ctx)?;
+    // register_current_schemas(&ctx)?;
     register_scalar_format_type(&ctx)?;
     register_scalar_pg_get_expr(&ctx)?;
     register_scalar_pg_get_partkeydef(&ctx)?;
