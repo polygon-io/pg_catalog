@@ -37,6 +37,7 @@ use crate::replace::{
     rewrite_schema_qualified_custom_types,
     rewrite_schema_qualified_text,
     rewrite_schema_qualified_udtfs,
+    rewrite_time_zone_utc,
     strip_default_collate,
 };
 
@@ -273,6 +274,7 @@ pub fn print_params(params: &Vec<Option<Bytes>>) {
 pub fn rewrite_filters(sql: &str) -> datafusion::error::Result<(String, HashMap<String, String>)>{
     let sql = replace_set_command_with_namespace(&sql)?;
     let sql = strip_default_collate(&sql)?;
+    let sql = rewrite_time_zone_utc(&sql)?;
     let sql = rewrite_regoper_cast(&sql)?;
     let sql = rewrite_regoperator_cast(&sql)?;
     let sql = rewrite_regprocedure_cast(&sql)?;

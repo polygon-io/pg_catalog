@@ -609,3 +609,12 @@ def test_capture_option(tmp_path):
     assert data[1]["parameters"] == [11]
     assert data[2]["success"] is False
 
+
+def test_postmaster_time_zone_lowercase(server):
+    with psycopg.connect(CONN_STR) as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT round(EXTRACT(EPOCH FROM pg_postmaster_start_time() AT TIME ZONE 'utc')) AS startup_time"
+        )
+        row = cur.fetchone()
+        assert isinstance(row[0], int)

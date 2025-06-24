@@ -934,6 +934,39 @@ pub fn strip_default_collate(sql: &str) -> Result<String> {
         .collect::<Vec<_>>()
         .join("; "))
 }
+// Normalize utc timezone case
+pub fn rewrite_time_zone_utc(sql: &str) -> Result<String> {
+    use sqlparser::ast::{visit_expressions_mut, visit_statements_mut, Expr, Value, ValueWithSpan};
+    use sqlparser::dialect::PostgreSqlDialect;
+    use sqlparser::parser::Parser;
+    use std::ops::ControlFlow;
+
+    let dialect = PostgreSqlDialect {};
+    let mut stmts = Parser::parse_sql(&dialect, sql)
+        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut rewritten = false;
+
+    let _ = visit_statements_mut(&mut stmts, |stmt| {
+        visit_expressions_mut(stmt, |e| {
+            if let Expr::AtTimeZone { time_zone, .. } = e {
+                if let Expr::Value(ValueWithSpan { value: Value::SingleQuotedString(ref mut s), .. }) = time_zone.as_mut() {
+                    if s.eq_ignore_ascii_case("utc") && s != "UTC" {
+                        *s = "UTC".into();
+                        rewritten = true;
+                    }
+                }
+            }
+            ControlFlow::<()>::Continue(())
+        })?;
+        ControlFlow::Continue(())
+    });
+
+    if rewritten {
+        Ok(stmts.into_iter().map(|s| s.to_string()).collect::<Vec<_>>().join("; "))
+    } else {
+        Ok(sql.to_owned())
+    }
+}
 
 /// Re-write  ARRAY( <sub-query> )
 ///        ⟶  pg_catalog.pg_get_array( ( <sub-query> ) )
@@ -1630,6 +1663,16 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_rewrite_time_zone_utc() -> Result<(), Box<dyn std::error::Error>> {
+        let input = "SELECT pg_postmaster_start_time() AT TIME ZONE 'utc'";
+        let expected = "SELECT pg_postmaster_start_time() AT TIME ZONE 'UTC'";
+        assert_eq!(rewrite_time_zone_utc(input).unwrap(), expected);
+
+        let unchanged = "SELECT pg_postmaster_start_time() AT TIME ZONE 'UTC'";
+        assert_eq!(rewrite_time_zone_utc(unchanged).unwrap(), unchanged);
+        Ok(())
+    }
 
     #[test]
     fn test_various_sql_cases() -> Result<(), Box<dyn Error>> {
