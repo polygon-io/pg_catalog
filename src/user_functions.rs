@@ -545,14 +545,13 @@ pub fn register_current_schema(ctx: &SessionContext) -> Result<()> {
 
 /// Register `current_schemas(boolean)` returning `[pg_catalog, public]`.
 pub fn register_current_schemas(ctx: &SessionContext) -> Result<()> {
+    // TODO: this is hardcoded
     use arrow::array::{ArrayRef, ListBuilder, StringBuilder};
     use arrow::datatypes::{DataType, Field};
     use datafusion::logical_expr::{create_udf, ColumnarValue, Volatility};
     use std::sync::Arc;
 
     let fun = |_args: &[ColumnarValue]| -> Result<ColumnarValue> {
-    
-        println!("current_schemas called !!!");
         let mut builder = ListBuilder::new(StringBuilder::new());
         builder.values().append_value("pg_catalog");
         builder.values().append_value("main");
