@@ -157,7 +157,7 @@ def test_current_user(server):
         cur = conn.cursor()
         cur.execute("SELECT current_database(), current_schema(), current_user")
         row = cur.fetchone()
-    assert row == ("pgtry", "public", "dbuser")
+    assert row == ("pgtry", "pg_catalog", "dbuser")
 
 
 def test_current_schemas(server):

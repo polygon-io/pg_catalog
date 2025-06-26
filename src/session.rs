@@ -797,8 +797,19 @@ pub async fn get_base_session_context(schema_path: Option<&str>, default_catalog
     register_scalar_pg_tablespace_location(&ctx)?;
     register_scalar_format_type(&ctx)?;
     ctx.register_udtf("regclass_oid", Arc::new(crate::user_functions::RegClassOidFunc));
-    register_current_schema(&ctx)?;
-    register_current_schemas(&ctx)?;
+    fn default_current_schemas(ctx: &SessionContext) -> Vec<String> {
+        let state = ctx.state();
+        let options = state.config_options();
+        let default_schema = options.catalog.default_schema.clone();
+        let user_schema = if default_schema == "pg_catalog" {
+            "public".to_string()
+        } else {
+            default_schema
+        };
+        vec!["pg_catalog".to_string(), user_schema]
+    }
+    register_current_schema(&ctx, default_current_schemas)?;
+    register_current_schemas(&ctx, default_current_schemas)?;
     register_scalar_format_type(&ctx)?;
     register_scalar_pg_get_expr(&ctx)?;
     register_scalar_pg_get_partkeydef(&ctx)?;
