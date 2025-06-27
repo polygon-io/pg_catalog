@@ -5,9 +5,7 @@ use datafusion::execution::context::SessionContext;
 use datafusion::{
     common::ScalarValue,
 };
-use arrow::array::Int32Array;
-use arrow::array::StringArray;
-
+use arrow::array::{Int64Array};
 use std::sync::atomic::{AtomicI32, Ordering};
 
 #[derive(Debug, Clone, Deserialize)]
@@ -37,6 +35,13 @@ pub async fn register_user_database(ctx:&SessionContext, database_name:&str) -> 
            ("database_name", ScalarValue::from(database_name))
         ])?;
     if df.count().await? == 0 {
+
+        let getiddf = ctx.sql("select max(oid)+1 from pg_catalog.pg_database").await?;
+        let batches = getiddf.collect().await?;
+        let array = batches[0].column(0).as_any().downcast_ref::<Int64Array>().unwrap();
+        let dbid = array.value(0);
+
+
         let df = ctx.sql(&format!("INSERT INTO pg_catalog.pg_database (
             oid,
             datname,
@@ -52,7 +57,7 @@ pub async fn register_user_database(ctx:&SessionContext, database_name:&str) -> 
             dattablespace,
             datacl
         ) VALUES (
-            27734,
+            {},
             '{}',
             27735,
             6,
@@ -66,6 +71,7 @@ pub async fn register_user_database(ctx:&SessionContext, database_name:&str) -> 
             1663,
             ARRAY['=Tc/dbuser', 'dbuser=CTc/dbuser']
         );",
+            dbid,
             database_name.replace('\'', "''")
         )).await?;
         df.collect().await?;
@@ -198,6 +204,7 @@ mod tests {
             Some("pg_catalog_data/pg_schema"),
             "pgtry".to_string(),
             "public".to_string(),
+            None
         )
         .await?;
 
@@ -251,6 +258,7 @@ mod tests {
             Some("pg_catalog_data/pg_schema"),
             "pgtry".to_string(),
             "public".to_string(),
+            None
         )
         .await?;
 
@@ -294,6 +302,7 @@ mod tests {
             Some("pg_catalog_data/pg_schema"),
             "pgtry".to_string(),
             "public".to_string(),
+            None
         )
         .await?;
 
@@ -312,6 +321,7 @@ mod tests {
             Some("pg_catalog_data/pg_schema"),
             "pgtry".to_string(),
             "public".to_string(),
+            None
         )
         .await?;
 

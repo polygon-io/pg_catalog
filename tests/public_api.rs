@@ -37,6 +37,7 @@ async fn test_get_base_session_context_public() -> datafusion::error::Result<()>
         Some(zip_path.to_str().unwrap()),
         "pgtry".to_string(),
         "public".to_string(),
+        None
     ).await?;
     Ok(())
 }
@@ -47,6 +48,7 @@ async fn test_get_base_session_context_embedded() -> datafusion::error::Result<(
         None,
         "pgtry".to_string(),
         "public".to_string(),
+        None
     ).await?;
     Ok(())
 }

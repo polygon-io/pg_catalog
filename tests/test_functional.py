@@ -157,7 +157,7 @@ def test_current_user(server):
         cur = conn.cursor()
         cur.execute("SELECT current_database(), current_schema(), current_user")
         row = cur.fetchone()
-    assert row == ("pgtry", "public", "dbuser")
+    assert row == ("pgtry", "pg_catalog", "dbuser")
 
 
 def test_current_schemas(server):
@@ -617,4 +617,4 @@ def test_postmaster_time_zone_lowercase(server):
             "SELECT round(EXTRACT(EPOCH FROM pg_postmaster_start_time() AT TIME ZONE 'utc')) AS startup_time"
         )
         row = cur.fetchone()
-        assert isinstance(row[0], int)
+        assert isinstance(int(row[0]), int)

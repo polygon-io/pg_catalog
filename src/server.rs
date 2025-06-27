@@ -190,7 +190,6 @@ impl DatafusionBackend {
             });
             let udf = create_udf(KEY, vec![], DataType::Utf8, Volatility::Stable, fun.clone());
             self.ctx.register_udf(udf);
-            // udf.with_aliases("pg_catalog.current_database");
             let udf = create_udf("pg_catalog.current_database", vec![], DataType::Utf8, Volatility::Stable, fun.clone());
             self.ctx.register_udf(udf);
         }
