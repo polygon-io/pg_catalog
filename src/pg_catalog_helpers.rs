@@ -5,9 +5,7 @@ use datafusion::execution::context::SessionContext;
 use datafusion::{
     common::ScalarValue,
 };
-use arrow::array::{Int32Array, Int64Array};
-use arrow::array::StringArray;
-
+use arrow::array::{Int64Array};
 use std::sync::atomic::{AtomicI32, Ordering};
 
 #[derive(Debug, Clone, Deserialize)]
@@ -206,6 +204,7 @@ mod tests {
             Some("pg_catalog_data/pg_schema"),
             "pgtry".to_string(),
             "public".to_string(),
+            None
         )
         .await?;
 
@@ -259,6 +258,7 @@ mod tests {
             Some("pg_catalog_data/pg_schema"),
             "pgtry".to_string(),
             "public".to_string(),
+            None
         )
         .await?;
 
@@ -302,6 +302,7 @@ mod tests {
             Some("pg_catalog_data/pg_schema"),
             "pgtry".to_string(),
             "public".to_string(),
+            None
         )
         .await?;
 
@@ -320,6 +321,7 @@ mod tests {
             Some("pg_catalog_data/pg_schema"),
             "pgtry".to_string(),
             "public".to_string(),
+            None
         )
         .await?;
 

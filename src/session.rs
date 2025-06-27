@@ -15,6 +15,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::Path;
 use std::io::{Read, Cursor};
+use std::ptr::null;
 use std::sync::{Arc, Mutex};
 use zip::ZipArchive;
 use pgwire::api::Type;
@@ -773,7 +774,29 @@ fn register_catalogs_from_schemas(ctx:&SessionContext, schemas: HashMap<String, 
 }
 
 
-pub async fn get_base_session_context(schema_path: Option<&str>, default_catalog:String, default_schema:String) -> datafusion::error::Result<(SessionContext, Arc<Mutex<Vec<ScanTrace>>>)> {
+fn default_current_schemas(ctx: &SessionContext) -> Vec<String> {
+    let state = ctx.state();
+    let options = state.config_options();
+    let default_schema = options.catalog.default_schema.clone();
+    let user_schema = if default_schema == "pg_catalog" {
+        "public".to_string()
+    } else {
+        default_schema
+    };
+    vec!["pg_catalog".to_string(), user_schema]
+}
+
+pub async fn get_base_session_context(schema_path: Option<&str>, 
+        default_catalog:String, 
+        default_schema:String,
+        current_schemas_getter: Option<Arc<dyn Fn(&SessionContext) -> Vec<String> + Send + Sync>>,
+    ) -> datafusion::error::Result<(SessionContext, Arc<Mutex<Vec<ScanTrace>>>)> 
+    {
+
+    let _current_schemas_getter: Arc<dyn Fn(&SessionContext) -> Vec<String> + Send + Sync> =
+        current_schemas_getter.unwrap_or_else(|| Arc::new(default_current_schemas));
+
+
     let log: Arc<Mutex<Vec<ScanTrace>>> = Arc::new(Mutex::new(Vec::new()));
 
     let schemas = parse_schema(schema_path);
@@ -797,19 +820,10 @@ pub async fn get_base_session_context(schema_path: Option<&str>, default_catalog
     register_scalar_pg_tablespace_location(&ctx)?;
     register_scalar_format_type(&ctx)?;
     ctx.register_udtf("regclass_oid", Arc::new(crate::user_functions::RegClassOidFunc));
-    fn default_current_schemas(ctx: &SessionContext) -> Vec<String> {
-        let state = ctx.state();
-        let options = state.config_options();
-        let default_schema = options.catalog.default_schema.clone();
-        let user_schema = if default_schema == "pg_catalog" {
-            "public".to_string()
-        } else {
-            default_schema
-        };
-        vec!["pg_catalog".to_string(), user_schema]
-    }
-    register_current_schema(&ctx, default_current_schemas)?;
-    register_current_schemas(&ctx, default_current_schemas)?;
+
+    register_current_schema(&ctx, _current_schemas_getter.clone())?;
+    register_current_schemas(&ctx, _current_schemas_getter.clone())?;
+
     register_scalar_format_type(&ctx)?;
     register_scalar_pg_get_expr(&ctx)?;
     register_scalar_pg_get_partkeydef(&ctx)?;
