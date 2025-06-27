@@ -41,7 +41,7 @@
   result: 
   - 
     current_database: "pgtry"
-    current_schema: "public"
+    current_schema: "pg_catalog"
     current_user: "dbuser"
   success: true
 
@@ -93,7 +93,7 @@ order by case when datname = pg_catalog.current_database() then -1::bigint else 
   - 
     allow_connections: true
     description: null
-    id: 27734
+    id: 6
     is_template: false
     name: "pgtry"
     owner: "postgres"
@@ -2814,7 +2814,7 @@ from pg_catalog.pg_tablespace T
     acl: 
       - "=Tc/dbuser"
       - "dbuser=CTc/dbuser"
-    object_id: 27734
+    object_id: 6
   - 
     acl: null
     object_id: 1663

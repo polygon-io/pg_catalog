@@ -209,10 +209,12 @@ fn function_is_catalog(ctx: &SessionContext, name: &ObjectName) -> bool {
                 .iter()
                 .any(|schema| {
                     let full = format!("{schema}.{func}");
-                    (ctx.udf(&full).is_ok()
-                        || ctx.udaf(&full).is_ok()
-                        || ctx.table_function(&full).is_ok()
-                        || ctx.udwf(&full).is_ok())
+                    
+                    ctx.udf(&full).is_ok()
+                    || ctx.udaf(&full).is_ok()
+                    || ctx.table_function(&full).is_ok()
+                    || ctx.udwf(&full).is_ok()
+                    
                 })
         }
         [_, schema, func] => {

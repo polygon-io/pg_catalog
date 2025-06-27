@@ -42,7 +42,7 @@ ORDER BY db.datname"
     datname: "pgtry"
     dattablespace: 1663
     encoding: 6
-    oid: 27734
+    oid: 6
   - 
     datacl: null
     datallowconn: true
@@ -95,7 +95,7 @@ ORDER BY db.datname"
   query: "SELECT current_schema(),session_user"
   result: 
   - 
-    current_schema: "public"
+    current_schema: "pg_catalog"
     session_user: "dbuser"
   success: true
 
@@ -168,7 +168,7 @@ LEFT OUTER JOIN pg_catalog.pg_description d ON d.objoid=n.oid AND d.objsubid=0 A
   query: "SELECT current_schema(),session_user"
   result: 
   - 
-    current_schema: "public"
+    current_schema: "pg_catalog"
     session_user: "dbuser"
   success: true
 
