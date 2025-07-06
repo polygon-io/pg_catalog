@@ -1,7 +1,10 @@
 // Collection of custom UDF and UDTF implementations.
 // Provides functions like oid(), pg_get_array and others so queries behave like PostgreSQL.
 // Added to extend DataFusion with features required by pg_catalog emulation.
-use arrow::array::{as_string_array, Array, ArrayRef, BooleanBuilder, ListArray, StringBuilder, TimestampMicrosecondArray};
+use arrow::array::{
+    as_string_array, Array, ArrayRef, BooleanBuilder, ListArray, StringBuilder,
+    TimestampMicrosecondArray,
+};
 use arrow::datatypes::DataType as ArrowDataType;
 use async_trait::async_trait;
 use datafusion::arrow::array::{Int64Array, Int64Builder};
@@ -114,10 +117,22 @@ pub fn register_scalar_regclass_oid(ctx: &SessionContext) -> Result<()> {
                         } else {
                             let col = batches[0].column(0);
                             if let Some(arr) = col.as_any().downcast_ref::<Int64Array>() {
-                                if arr.is_null(0) { Ok(None) } else { Ok(Some(arr.value(0))) }
-                            } else if let Some(arr) = col.as_any().downcast_ref::<arrow::array::Int32Array>() {
-                                if arr.is_null(0) { Ok(None) } else { Ok(Some(arr.value(0) as i64)) }
-                            } else { Ok(None) }
+                                if arr.is_null(0) {
+                                    Ok(None)
+                                } else {
+                                    Ok(Some(arr.value(0)))
+                                }
+                            } else if let Some(arr) =
+                                col.as_any().downcast_ref::<arrow::array::Int32Array>()
+                            {
+                                if arr.is_null(0) {
+                                    Ok(None)
+                                } else {
+                                    Ok(Some(arr.value(0) as i64))
+                                }
+                            } else {
+                                Ok(None)
+                            }
                         }
                     })
                 })?;
@@ -148,14 +163,30 @@ pub fn register_scalar_regclass_oid(ctx: &SessionContext) -> Result<()> {
                             } else {
                                 let col = batches[0].column(0);
                                 if let Some(a) = col.as_any().downcast_ref::<Int64Array>() {
-                                    if a.is_null(0) { Ok(None) } else { Ok(Some(a.value(0))) }
-                                } else if let Some(a) = col.as_any().downcast_ref::<arrow::array::Int32Array>() {
-                                    if a.is_null(0) { Ok(None) } else { Ok(Some(a.value(0) as i64)) }
-                                } else { Ok(None) }
+                                    if a.is_null(0) {
+                                        Ok(None)
+                                    } else {
+                                        Ok(Some(a.value(0)))
+                                    }
+                                } else if let Some(a) =
+                                    col.as_any().downcast_ref::<arrow::array::Int32Array>()
+                                {
+                                    if a.is_null(0) {
+                                        Ok(None)
+                                    } else {
+                                        Ok(Some(a.value(0) as i64))
+                                    }
+                                } else {
+                                    Ok(None)
+                                }
                             }
                         })
                     })?;
-                    if let Some(v) = opt { builder.append_value(v); } else { builder.append_null(); }
+                    if let Some(v) = opt {
+                        builder.append_value(v);
+                    } else {
+                        builder.append_null();
+                    }
                 }
                 Ok(ColumnarValue::Array(Arc::new(builder.finish()) as ArrayRef))
             }
@@ -519,13 +550,11 @@ pub fn register_has_schema_privilege(ctx: &SessionContext) -> Result<()> {
     Ok(())
 }
 
-
 /// Register `current_schema()` returning the constant `public`.
 pub fn register_current_schema(
     ctx: &SessionContext,
     get_current_schemas: Arc<dyn Fn(&SessionContext) -> Vec<String> + Send + Sync>,
-) -> Result<()>
-{
+) -> Result<()> {
     let ctx_arc = Arc::new(ctx.clone());
     let get_current_schemas = get_current_schemas.clone();
 
@@ -542,7 +571,8 @@ pub fn register_current_schema(
                 Ok(ColumnarValue::Scalar(ScalarValue::Utf8(Some(schema))))
             })
         },
-    ).with_aliases(["pg_catalog.current_schema"]);
+    )
+    .with_aliases(["pg_catalog.current_schema"]);
     ctx_arc.register_udf(udf);
     Ok(())
 }
@@ -551,8 +581,7 @@ pub fn register_current_schema(
 pub fn register_current_schemas(
     ctx: &SessionContext,
     get_current_schemas: Arc<dyn Fn(&SessionContext) -> Vec<String> + Send + Sync>,
-) -> Result<()>
-{
+) -> Result<()> {
     use arrow::array::{ArrayRef, ListBuilder, StringBuilder};
     use arrow::datatypes::{DataType, Field};
     use datafusion::logical_expr::{create_udf, ColumnarValue, Volatility};
@@ -959,7 +988,6 @@ pub fn register_pg_get_one(ctx: &SessionContext) -> Result<()> {
     Ok(())
 }
 
-
 #[derive(Debug)]
 struct ArrayCollector {
     vals: Vec<ScalarValue>,
@@ -1049,11 +1077,9 @@ pub fn register_pg_get_array(ctx: &SessionContext) -> Result<()> {
         // the datatype of the *first* argument as planned for this agg-call
         let dt = args
             .exprs
-            .first()                          // pg_get_array takes exactly one arg
-            .ok_or_else(|| DataFusionError::Internal(
-                "pg_get_array expects one argument".into()
-            ))?
-            .data_type(args.schema)?;                          // ask the expression for its type
+            .first() // pg_get_array takes exactly one arg
+            .ok_or_else(|| DataFusionError::Internal("pg_get_array expects one argument".into()))?
+            .data_type(args.schema)?; // ask the expression for its type
 
         Ok(Box::new(ArrayCollector::new(dt)))
     };
@@ -1096,10 +1122,7 @@ pub fn register_oidvector_to_array(ctx: &SessionContext) -> Result<()> {
             if !txt.trim().is_empty() {
                 for tok in txt.split_whitespace() {
                     let oid: i64 = tok.parse().map_err(|_| {
-                        DataFusionError::Execution(format!(
-                            "invalid oid value '{}'",
-                            tok
-                        ))
+                        DataFusionError::Execution(format!("invalid oid value '{}'", tok))
                     })?;
                     builder.values().append_value(oid);
                 }
@@ -1122,7 +1145,6 @@ pub fn register_oidvector_to_array(ctx: &SessionContext) -> Result<()> {
     Ok(())
 }
 
-
 #[derive(Debug)]
 struct PostmasterStartTimeTable {
     schema: SchemaRef,
@@ -1131,9 +1153,15 @@ struct PostmasterStartTimeTable {
 
 #[async_trait]
 impl TableProvider for PostmasterStartTimeTable {
-    fn as_any(&self) -> &dyn std::any::Any { self }
-    fn schema(&self) -> SchemaRef { self.schema.clone() }
-    fn table_type(&self) -> TableType { TableType::Base }
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn schema(&self) -> SchemaRef {
+        self.schema.clone()
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Base
+    }
     async fn scan(
         &self,
         _session: &dyn Session,
@@ -1173,7 +1201,9 @@ pub fn register_pg_postmaster_start_time(ctx: &SessionContext) -> Result<()> {
     use datafusion::logical_expr::{create_udf, ColumnarValue, Volatility};
     use std::sync::Arc;
     let ts = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH).unwrap().as_micros() as i64;
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_micros() as i64;
 
     let schema = Arc::new(Schema::new(vec![Field::new(
         "pg_postmaster_start_time",
@@ -1224,8 +1254,8 @@ pub fn register_pg_postmaster_start_time(ctx: &SessionContext) -> Result<()> {
 /// Register a trivial `pg_age` implementation used by some catalog views.
 pub fn register_scalar_pg_age(ctx: &SessionContext) -> Result<()> {
     use arrow::datatypes::DataType;
-    use datafusion::logical_expr::{create_udf, ColumnarValue, Volatility};
     use datafusion::common::ScalarValue;
+    use datafusion::logical_expr::{create_udf, ColumnarValue, Volatility};
     use std::sync::Arc;
 
     // one closure – we don’t care about the argument, just return 1
@@ -1236,9 +1266,9 @@ pub fn register_scalar_pg_age(ctx: &SessionContext) -> Result<()> {
     // accept BIGINT *or* TEXT
     for dt in [DataType::Int64, DataType::Utf8] {
         let udf = create_udf(
-            "pg_catalog.age",      // ← exact name Postgres uses
+            "pg_catalog.age", // ← exact name Postgres uses
             vec![dt],
-            DataType::Int64,       // always returns BIGINT
+            DataType::Int64, // always returns BIGINT
             Volatility::Stable,
             Arc::new(fun),
         );
@@ -1246,7 +1276,6 @@ pub fn register_scalar_pg_age(ctx: &SessionContext) -> Result<()> {
     }
     Ok(())
 }
-
 
 /// pg_catalog.pg_is_in_recovery() → BOOL
 ///
@@ -1263,16 +1292,15 @@ pub fn register_scalar_pg_is_in_recovery(ctx: &SessionContext) -> Result<()> {
 
     // zero-argument signature
     let udf = create_udf(
-        "pg_catalog.pg_is_in_recovery",   // full, schema-qualified name
-        vec![],                           // no arguments
-        DataType::Boolean,                // returns BOOL
-        Volatility::Stable,               // it never changes inside a session
+        "pg_catalog.pg_is_in_recovery", // full, schema-qualified name
+        vec![],                         // no arguments
+        DataType::Boolean,              // returns BOOL
+        Volatility::Stable,             // it never changes inside a session
         Arc::new(fun),
     );
     ctx.register_udf(udf);
     Ok(())
 }
-
 
 /// pg_catalog.txid_current()  →  BIGINT
 ///
@@ -1290,15 +1318,15 @@ pub fn register_scalar_txid_current(ctx: &SessionContext) -> Result<()> {
     static NEXT_TXID: Lazy<AtomicU64> = Lazy::new(|| AtomicU64::new(1));
 
     let fun = |_args: &[ColumnarValue]| -> Result<ColumnarValue> {
-        let val = NEXT_TXID.fetch_add(1, Ordering::SeqCst) as i64;   // BIGINT
+        let val = NEXT_TXID.fetch_add(1, Ordering::SeqCst) as i64; // BIGINT
         Ok(ColumnarValue::Scalar(ScalarValue::Int64(Some(val))))
     };
 
     let udf = create_udf(
-        "pg_catalog.txid_current",   // full, schema-qualified name
-        vec![],                      // zero arguments
-        DataType::Int64,             // returns BIGINT
-        Volatility::Stable,          // stays the same within a single statement
+        "pg_catalog.txid_current", // full, schema-qualified name
+        vec![],                    // zero arguments
+        DataType::Int64,           // returns BIGINT
+        Volatility::Stable,        // stays the same within a single statement
         Arc::new(fun),
     );
     ctx.register_udf(udf);
@@ -1439,11 +1467,11 @@ pub fn register_upper(ctx: &SessionContext) -> Result<()> {
 ///
 /// Returns a PostgreSQL-style server version string.
 pub fn register_version_fn(ctx: &SessionContext) -> Result<()> {
-    use arrow::datatypes::DataType;
-    use datafusion::logical_expr::{create_udf, ColumnarValue, Volatility};
-    use datafusion::common::ScalarValue;
-    use std::sync::Arc;
     use crate::server::SERVER_VERSION;
+    use arrow::datatypes::DataType;
+    use datafusion::common::ScalarValue;
+    use datafusion::logical_expr::{create_udf, ColumnarValue, Volatility};
+    use std::sync::Arc;
 
     let fun = |_args: &[ColumnarValue]| -> Result<ColumnarValue> {
         Ok(ColumnarValue::Scalar(ScalarValue::Utf8(Some(format!(
@@ -1470,8 +1498,8 @@ pub fn register_pg_get_viewdef(ctx: &SessionContext) -> Result<()> {
     use arrow::array::{ArrayRef, StringBuilder};
     use arrow::datatypes::DataType;
     use datafusion::logical_expr::{
-        ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature,
-        TypeSignature, Volatility,
+        ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, TypeSignature,
+        Volatility,
     };
     use std::sync::Arc;
 
@@ -1686,8 +1714,8 @@ pub fn register_pg_get_triggerdef(ctx: &SessionContext) -> Result<()> {
     use arrow::array::{ArrayRef, StringBuilder};
     use arrow::datatypes::DataType;
     use datafusion::logical_expr::{
-        ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature,
-        TypeSignature, Volatility,
+        ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, TypeSignature,
+        Volatility,
     };
     use std::sync::Arc;
 
@@ -1733,8 +1761,7 @@ pub fn register_pg_get_triggerdef(ctx: &SessionContext) -> Result<()> {
         }
     }
 
-    let udf = ScalarUDF::new_from_impl(PgGetTriggerDef::new())
-        .with_aliases(["pg_get_triggerdef"]);
+    let udf = ScalarUDF::new_from_impl(PgGetTriggerDef::new()).with_aliases(["pg_get_triggerdef"]);
     ctx.register_udf(udf);
     Ok(())
 }
@@ -1746,8 +1773,8 @@ pub fn register_pg_get_ruledef(ctx: &SessionContext) -> Result<()> {
     use arrow::array::{ArrayRef, StringBuilder};
     use arrow::datatypes::DataType;
     use datafusion::logical_expr::{
-        ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature,
-        TypeSignature, Volatility,
+        ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, TypeSignature,
+        Volatility,
     };
     use std::sync::Arc;
 
@@ -1959,10 +1986,7 @@ pub fn register_pg_get_keywords(ctx: &SessionContext) -> Result<()> {
             schema: schema.clone(),
         }),
     );
-    ctx.register_udtf(
-        "pg_catalog.pg_get_keywords",
-        Arc::new(Func { schema }),
-    );
+    ctx.register_udtf("pg_catalog.pg_get_keywords", Arc::new(Func { schema }));
     Ok(())
 }
 
@@ -2011,8 +2035,6 @@ pub fn register_pg_total_relation_size(ctx: &SessionContext) -> Result<()> {
     ctx.register_udf(udf);
     Ok(())
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -2217,13 +2239,9 @@ mod tests {
         let ctx = make_ctx().await?;
 
         let sql = rewrite_subquery_as_cte(
-            "SELECT pg_get_array((SELECT relname FROM pg_catalog.pg_class order by 1)) AS v;"
+            "SELECT pg_get_array((SELECT relname FROM pg_catalog.pg_class order by 1)) AS v;",
         );
-        let batches = ctx
-            .sql(&sql)
-            .await?
-            .collect()
-            .await?;
+        let batches = ctx.sql(&sql).await?.collect().await?;
 
         let list = batches[0]
             .column(0)
@@ -2243,7 +2261,8 @@ mod tests {
 
         let ctx = make_ctx().await?;
 
-        let sql = "SELECT pg_catalog.array_agg(relname ORDER BY relname) AS v FROM pg_catalog.pg_class";
+        let sql =
+            "SELECT pg_catalog.array_agg(relname ORDER BY relname) AS v FROM pg_catalog.pg_class";
         let batches = ctx.sql(sql).await?.collect().await?;
         let list = batches[0]
             .column(0)
@@ -2302,16 +2321,21 @@ mod tests {
         Ok(())
     }
 
-
     #[tokio::test]
     async fn pg_is_in_recovery_always_false() -> Result<()> {
         let ctx = SessionContext::new();
         register_scalar_pg_is_in_recovery(&ctx)?;
 
-        let batches = ctx.sql("SELECT pg_catalog.pg_is_in_recovery()").await?
-                        .collect().await?;
-        let arr = batches[0].column(0)
-                    .as_any().downcast_ref::<arrow::array::BooleanArray>().unwrap();
+        let batches = ctx
+            .sql("SELECT pg_catalog.pg_is_in_recovery()")
+            .await?
+            .collect()
+            .await?;
+        let arr = batches[0]
+            .column(0)
+            .as_any()
+            .downcast_ref::<arrow::array::BooleanArray>()
+            .unwrap();
         assert_eq!(arr.value(0), false);
         Ok(())
     }
@@ -2320,16 +2344,28 @@ mod tests {
     async fn txid_current_ticks_up() -> Result<()> {
         let ctx = SessionContext::new();
         register_scalar_txid_current(&ctx)?;
-    
-        let v1: i64 = ctx.sql("SELECT pg_catalog.txid_current()").await?
-                         .collect().await?[0].column(0)
-                         .as_any().downcast_ref::<arrow::array::Int64Array>()
-                         .unwrap().value(0);
-        let v2: i64 = ctx.sql("SELECT pg_catalog.txid_current()").await?
-                         .collect().await?[0].column(0)
-                         .as_any().downcast_ref::<arrow::array::Int64Array>()
-                         .unwrap().value(0);
-    
+
+        let v1: i64 = ctx
+            .sql("SELECT pg_catalog.txid_current()")
+            .await?
+            .collect()
+            .await?[0]
+            .column(0)
+            .as_any()
+            .downcast_ref::<arrow::array::Int64Array>()
+            .unwrap()
+            .value(0);
+        let v2: i64 = ctx
+            .sql("SELECT pg_catalog.txid_current()")
+            .await?
+            .collect()
+            .await?[0]
+            .column(0)
+            .as_any()
+            .downcast_ref::<arrow::array::Int64Array>()
+            .unwrap()
+            .value(0);
+
         assert!(v2 == v1 + 1);
         Ok(())
     }
@@ -2505,7 +2541,6 @@ mod tests {
             Arc::new(|_| vec!["pg_catalog".to_string(), "public".to_string()]),
         )?;
 
-
         let batches = ctx
             .sql("SELECT current_schemas(true) AS v")
             .await?
@@ -2527,7 +2562,7 @@ mod tests {
     async fn current_schema_uses_callable() -> Result<()> {
         use arrow::array::StringArray;
         let ctx = SessionContext::new();
-        
+
         register_current_schema(
             &ctx,
             Arc::new(|_| vec!["myschema".to_string(), "other".to_string()]),
@@ -2608,5 +2643,4 @@ mod tests {
         assert!(arr.value(0));
         Ok(())
     }
-
 }

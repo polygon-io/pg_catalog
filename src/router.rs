@@ -12,8 +12,8 @@
 
 use std::sync::Arc;
 
-use arrow::record_batch::RecordBatch;
 use arrow::datatypes::Schema;
+use arrow::record_batch::RecordBatch;
 use datafusion::execution::context::SessionContext;
 use datafusion::execution::FunctionRegistry;
 use log::debug;
@@ -37,10 +37,7 @@ fn parse_search_path(path: &str) -> Vec<String> {
         .filter(|s| !s.is_empty())
         .map(|s| s.trim_matches('"').to_string())
         .collect();
-    if !parts
-        .iter()
-        .any(|s| s.eq_ignore_ascii_case("pg_catalog"))
-    {
+    if !parts.iter().any(|s| s.eq_ignore_ascii_case("pg_catalog")) {
         parts.insert(0, "pg_catalog".to_string());
     }
     parts
@@ -76,9 +73,9 @@ fn qualify_factor(ctx: &SessionContext, factor: &mut TableFactor) {
             }
         }
         TableFactor::Derived { subquery, .. } => qualify_query(ctx, subquery),
-        TableFactor::NestedJoin { table_with_joins, .. } => {
-            qualify_table_with_joins(ctx, table_with_joins)
-        }
+        TableFactor::NestedJoin {
+            table_with_joins, ..
+        } => qualify_table_with_joins(ctx, table_with_joins),
         _ => {}
     }
 }
@@ -147,7 +144,11 @@ fn resolve_schema(ctx: &SessionContext, name: &ObjectName) -> Option<String> {
         .map(|opts| parse_search_path(&opts.search_path))
         .unwrap_or_else(|| vec!["pg_catalog".to_string(), default_schema.clone()]);
 
-    let parts: Vec<String> = name.0.iter().filter_map(|p| p.as_ident().map(|i| i.value.clone())).collect();
+    let parts: Vec<String> = name
+        .0
+        .iter()
+        .filter_map(|p| p.as_ident().map(|i| i.value.clone()))
+        .collect();
     match parts.as_slice() {
         [catalog, schema, table, ..] => {
             if table_exists(ctx, catalog, schema, table) {
@@ -204,19 +205,14 @@ fn function_is_catalog(ctx: &SessionContext, name: &ObjectName) -> bool {
                 && (schema.eq_ignore_ascii_case("pg_catalog")
                     || schema.eq_ignore_ascii_case("information_schema"))
         }
-        [func] => {
-            ["pg_catalog", "information_schema"]
-                .iter()
-                .any(|schema| {
-                    let full = format!("{schema}.{func}");
-                    
-                    ctx.udf(&full).is_ok()
-                    || ctx.udaf(&full).is_ok()
-                    || ctx.table_function(&full).is_ok()
-                    || ctx.udwf(&full).is_ok()
-                    
-                })
-        }
+        [func] => ["pg_catalog", "information_schema"].iter().any(|schema| {
+            let full = format!("{schema}.{func}");
+
+            ctx.udf(&full).is_ok()
+                || ctx.udaf(&full).is_ok()
+                || ctx.table_function(&full).is_ok()
+                || ctx.udwf(&full).is_ok()
+        }),
         [_, schema, func] => {
             let full = format!("{schema}.{func}");
             (ctx.udf(&full).is_ok()
@@ -235,9 +231,9 @@ fn factor_has_catalog(ctx: &SessionContext, factor: &TableFactor) -> bool {
     match factor {
         TableFactor::Table { name, .. } => object_is_catalog(ctx, name),
         TableFactor::Derived { subquery, .. } => query_has_catalog(ctx, subquery),
-        TableFactor::NestedJoin { table_with_joins, .. } => {
-            table_with_joins_contains_catalog(ctx, table_with_joins)
-        }
+        TableFactor::NestedJoin {
+            table_with_joins, ..
+        } => table_with_joins_contains_catalog(ctx, table_with_joins),
         _ => false,
     }
 }
@@ -333,12 +329,7 @@ pub async fn dispatch_query<'a, F, Fut>(
     handler: F,
 ) -> datafusion::error::Result<(Vec<RecordBatch>, Arc<Schema>)>
 where
-    F: Fn(
-        &'a SessionContext,
-        &'a str,
-        Option<Vec<Option<Bytes>>>,
-        Option<Vec<Type>>,
-    ) -> Fut,
+    F: Fn(&'a SessionContext, &'a str, Option<Vec<Option<Bytes>>>, Option<Vec<Type>>) -> Fut,
     Fut: std::future::Future<Output = datafusion::error::Result<(Vec<RecordBatch>, Arc<Schema>)>>,
 {
     if is_catalog_query(ctx, sql)? {
@@ -362,7 +353,13 @@ mod tests {
     #[tokio::test]
     async fn test_dispatch_user_table_calls_handler() -> datafusion::error::Result<()> {
         let ctx = SessionContext::new();
-        register_table(&ctx, "crm", "crm", "users", vec![("id", DataType::Int32, false)])?;
+        register_table(
+            &ctx,
+            "crm",
+            "crm",
+            "users",
+            vec![("id", DataType::Int32, false)],
+        )?;
 
         let called = Arc::new(Mutex::new(false));
         let called_clone = called.clone();
@@ -382,7 +379,13 @@ mod tests {
     #[tokio::test]
     async fn test_dispatch_catalog_query_internal() -> datafusion::error::Result<()> {
         let ctx = SessionContext::new();
-        register_table(&ctx, "datafusion", "pg_catalog", "pg_class", vec![("oid", DataType::Int32, false)])?;
+        register_table(
+            &ctx,
+            "datafusion",
+            "pg_catalog",
+            "pg_class",
+            vec![("oid", DataType::Int32, false)],
+        )?;
         let called = Arc::new(Mutex::new(false));
         let called_clone = called.clone();
         let handler = move |_ctx: &SessionContext, _sql: &str, _p, _t| {
@@ -393,7 +396,14 @@ mod tests {
             }
         };
 
-        let _ = dispatch_query(&ctx, "SELECT * FROM pg_catalog.pg_class", None, None, handler).await?;
+        let _ = dispatch_query(
+            &ctx,
+            "SELECT * FROM pg_catalog.pg_class",
+            None,
+            None,
+            handler,
+        )
+        .await?;
         assert!(!*called.lock().unwrap());
         Ok(())
     }
@@ -401,7 +411,13 @@ mod tests {
     #[tokio::test]
     async fn test_dispatch_unqualified_catalog_query_internal() -> datafusion::error::Result<()> {
         let ctx = SessionContext::new();
-        register_table(&ctx, "datafusion", "pg_catalog", "pg_class", vec![("oid", DataType::Int32, false)])?;
+        register_table(
+            &ctx,
+            "datafusion",
+            "pg_catalog",
+            "pg_class",
+            vec![("oid", DataType::Int32, false)],
+        )?;
 
         let called = Arc::new(Mutex::new(false));
         let called_clone = called.clone();
@@ -429,8 +445,20 @@ mod tests {
         }
 
         let ctx = SessionContext::new_with_config(config);
-        register_table(&ctx, "datafusion", "pg_catalog", "pg_class", vec![("oid", DataType::Int32, false)])?;
-        register_table(&ctx, "datafusion", "crm", "pg_class", vec![("id", DataType::Int32, false)])?;
+        register_table(
+            &ctx,
+            "datafusion",
+            "pg_catalog",
+            "pg_class",
+            vec![("oid", DataType::Int32, false)],
+        )?;
+        register_table(
+            &ctx,
+            "datafusion",
+            "crm",
+            "pg_class",
+            vec![("id", DataType::Int32, false)],
+        )?;
 
         let called = Arc::new(Mutex::new(false));
         let called_clone = called.clone();
@@ -450,7 +478,13 @@ mod tests {
     #[tokio::test]
     async fn test_dispatch_with_params_passes_to_handler() -> datafusion::error::Result<()> {
         let ctx = SessionContext::new();
-        register_table(&ctx, "crm", "crm", "users", vec![("id", DataType::Int32, false)])?;
+        register_table(
+            &ctx,
+            "crm",
+            "crm",
+            "users",
+            vec![("id", DataType::Int32, false)],
+        )?;
 
         let captured: Arc<Mutex<Option<Vec<Option<Bytes>>>>> = Arc::new(Mutex::new(None));
         let captured_clone = captured.clone();
@@ -464,7 +498,14 @@ mod tests {
 
         let params = vec![Some(Bytes::from("1"))];
         let types = vec![Type::INT4];
-        let _ = dispatch_query(&ctx, "SELECT * FROM users WHERE id=$1", Some(params.clone()), Some(types), handler).await?;
+        let _ = dispatch_query(
+            &ctx,
+            "SELECT * FROM users WHERE id=$1",
+            Some(params.clone()),
+            Some(types),
+            handler,
+        )
+        .await?;
         assert_eq!(*captured.lock().unwrap(), Some(params));
         Ok(())
     }
@@ -490,7 +531,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_dispatch_unqualified_catalog_function_internal() -> datafusion::error::Result<()> {
+    async fn test_dispatch_unqualified_catalog_function_internal() -> datafusion::error::Result<()>
+    {
         let ctx = SessionContext::new();
         register_version_fn(&ctx)?;
 
@@ -509,4 +551,3 @@ mod tests {
         Ok(())
     }
 }
-

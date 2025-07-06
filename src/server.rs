@@ -4,50 +4,54 @@
 
 use std::sync::{Arc, Mutex};
 
-use async_trait::async_trait;
-use futures::{stream, Stream};
-use futures::stream::BoxStream;
 use arrow::array::{Array, ArrayRef, Float32Array, Float64Array};
-use pgwire::api::auth::{AuthSource, DefaultServerParameterProvider, LoginInfo, Password};
+use async_trait::async_trait;
+use bytes::Bytes;
+use futures::stream::BoxStream;
+use futures::{stream, Stream};
 use pgwire::api::auth::md5pass::{hash_md5_password, Md5PasswordAuthStartupHandler};
+use pgwire::api::auth::{AuthSource, DefaultServerParameterProvider, LoginInfo, Password};
 use pgwire::api::copy::NoopCopyHandler;
 use pgwire::api::portal::{Format, Portal};
 use pgwire::api::query::{ExtendedQueryHandler, SimpleQueryHandler};
-use pgwire::api::results::{DataRowEncoder, DescribePortalResponse, DescribeStatementResponse, FieldFormat, FieldInfo, QueryResponse, Response, Tag};
+use pgwire::api::results::{
+    DataRowEncoder, DescribePortalResponse, DescribeStatementResponse, FieldFormat, FieldInfo,
+    QueryResponse, Response, Tag,
+};
 use pgwire::api::stmt::{NoopQueryParser, StoredStatement};
 use pgwire::api::{ClientInfo, PgWireServerHandlers, Type};
 use pgwire::error::{PgWireError, PgWireResult};
 use pgwire::messages::data::DataRow;
 use pgwire::tokio::process_socket;
-use tokio::net::TcpListener;
-use serde::{Serialize, Deserialize};
-use bytes::Bytes;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
+use tokio::net::TcpListener;
 
-use arrow::array::{BooleanArray, Int32Array, Int64Array, LargeStringArray, ListArray, StringArray, StringViewArray};
+use arrow::array::{
+    BooleanArray, Int32Array, Int64Array, LargeStringArray, ListArray, StringArray, StringViewArray,
+};
 use arrow::record_batch::RecordBatch;
 use datafusion::execution::context::SessionContext;
 
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 
 use datafusion::{
-    logical_expr::{create_udf, Volatility, ColumnarValue},
     common::ScalarValue,
+    logical_expr::{create_udf, ColumnarValue, Volatility},
 };
 
-use crate::session::{execute_sql, ClientOpts};
 use crate::router::dispatch_query;
-use tokio::net::TcpStream;
-use tokio::io::AsyncReadExt;
-use tokio::io::AsyncWriteExt;
+use crate::session::{execute_sql, ClientOpts};
 use log;
+use sqlparser::ast::Statement;
 use sqlparser::dialect::PostgreSqlDialect;
 use sqlparser::parser::Parser;
-use sqlparser::ast::Statement;
-
+use tokio::io::AsyncReadExt;
+use tokio::io::AsyncWriteExt;
+use tokio::net::TcpStream;
 
 /// PostgreSQL version reported to clients during startup and via `SHOW server_version`.
 pub const SERVER_VERSION: &str = "17.4.0";
@@ -69,7 +73,10 @@ struct CaptureStore {
 
 impl CaptureStore {
     fn new(path: PathBuf) -> Self {
-        Self { path, entries: Arc::new(Mutex::new(Vec::new())) }
+        Self {
+            path,
+            entries: Arc::new(Mutex::new(Vec::new())),
+        }
     }
 
     fn encode_yaml_value(v: &serde_json::Value, indent: usize, out: &mut String) {
@@ -165,7 +172,6 @@ pub struct DatafusionBackend {
 }
 
 impl DatafusionBackend {
-    
     pub fn new(ctx: Arc<SessionContext>, capture: Option<CaptureStore>) -> Self {
         Self {
             ctx,
@@ -180,17 +186,27 @@ impl DatafusionBackend {
     {
         static KEY: &str = "current_database";
 
-        if self.ctx.state().scalar_functions().contains_key(KEY){
+        if self.ctx.state().scalar_functions().contains_key(KEY) {
             return Ok(());
         }
 
-        if let Some(db) = client.metadata().get(pgwire::api::METADATA_DATABASE).cloned() {
+        if let Some(db) = client
+            .metadata()
+            .get(pgwire::api::METADATA_DATABASE)
+            .cloned()
+        {
             let fun = Arc::new(move |_args: &[ColumnarValue]| {
                 Ok(ColumnarValue::Scalar(ScalarValue::Utf8(Some(db.clone()))))
             });
             let udf = create_udf(KEY, vec![], DataType::Utf8, Volatility::Stable, fun.clone());
             self.ctx.register_udf(udf);
-            let udf = create_udf("pg_catalog.current_database", vec![], DataType::Utf8, Volatility::Stable, fun.clone());
+            let udf = create_udf(
+                "pg_catalog.current_database",
+                vec![],
+                DataType::Utf8,
+                Volatility::Stable,
+                fun.clone(),
+            );
             self.ctx.register_udf(udf);
         }
 
@@ -202,7 +218,7 @@ impl DatafusionBackend {
         C: ClientInfo + ?Sized,
     {
         static KEY: &str = "session_user";
-        if self.ctx.state().scalar_functions().contains_key(KEY){
+        if self.ctx.state().scalar_functions().contains_key(KEY) {
             return Ok(());
         }
 
@@ -248,10 +264,7 @@ impl DatafusionBackend {
 
     fn show_variable_response<'a>(&self, name: &str, format: FieldFormat) -> Option<Response<'a>> {
         let state = self.ctx.state();
-        let opts = state
-            .config_options()
-            .extensions
-            .get::<ClientOpts>()?;
+        let opts = state.config_options().extensions.get::<ClientOpts>()?;
 
         let value = match name {
             "application_name" => opts.application_name.as_str(),
@@ -260,9 +273,13 @@ impl DatafusionBackend {
             _ => return None,
         };
 
-        let fields = Arc::new(vec![
-            FieldInfo::new(name.to_string(), None, None, Type::TEXT, format),
-        ]);
+        let fields = Arc::new(vec![FieldInfo::new(
+            name.to_string(),
+            None,
+            None,
+            Type::TEXT,
+            format,
+        )]);
 
         let mut encoder = DataRowEncoder::new(fields.clone());
         encoder.encode_field(&Some(value)).ok()?;
@@ -297,11 +314,7 @@ impl AuthSource for DummyAuthSource {
         let salt = vec![0, 0, 0, 0];
         let password = "pencil";
 
-        let hash_password = hash_md5_password(
-            login_info.user().as_ref().unwrap(),
-            password,
-            &salt,
-        );
+        let hash_password = hash_md5_password(login_info.user().as_ref().unwrap(), password, &salt);
         Ok(Password::new(Some(salt), hash_password.as_bytes().to_vec()))
     }
 }
@@ -310,25 +323,23 @@ fn arrow_to_pg_type(dt: &DataType) -> Type {
     use arrow::datatypes::DataType::*;
 
     match dt {
-        Boolean        => Type::BOOL,
-        Int16          => Type::INT2,
-        Int32          => Type::INT4,
-        Int64          => Type::INT8,
+        Boolean => Type::BOOL,
+        Int16 => Type::INT2,
+        Int32 => Type::INT4,
+        Int64 => Type::INT8,
         Utf8 | Utf8View | LargeUtf8 => Type::TEXT,
-        Timestamp(_, _)              => Type::TIMESTAMP,
-        Float32        => Type::FLOAT4,   // real
-        Float64        => Type::FLOAT8,   // double precision
+        Timestamp(_, _) => Type::TIMESTAMP,
+        Float32 => Type::FLOAT4, // real
+        Float64 => Type::FLOAT8, // double precision
 
         // ── arrays ───────────────────────────────────────────────
         List(inner) => match inner.data_type() {
-            Utf8               => Type::TEXT_ARRAY,   // text[]
-            Int32              => Type::INT4_ARRAY,   // int4[]
-            Int64              => Type::INT8_ARRAY,   // int8[]
-            Boolean            => Type::BOOL_ARRAY,   // bool[]
+            Utf8 => Type::TEXT_ARRAY,    // text[]
+            Int32 => Type::INT4_ARRAY,   // int4[]
+            Int64 => Type::INT8_ARRAY,   // int8[]
+            Boolean => Type::BOOL_ARRAY, // bool[]
             // add more element types here as you need them
-            other => panic!(
-                "arrow_to_pg_type: no pgwire::Type for list<{other:?}>"
-            ),
+            other => panic!("arrow_to_pg_type: no pgwire::Type for list<{other:?}>"),
         },
 
         // anything else – send as plain text so the client can at
@@ -340,17 +351,22 @@ fn arrow_to_pg_type(dt: &DataType) -> Type {
     }
 }
 
-
 fn batch_to_field_info(batch: &RecordBatch, format: &Format) -> PgWireResult<Vec<FieldInfo>> {
-    Ok(batch.schema().fields().iter().enumerate().map(|(idx, f)| {
-        FieldInfo::new(
-            f.name().to_string(),
-            None,
-            None,
-            arrow_to_pg_type(f.data_type()),
-            format.format_for(idx),
-        )
-    }).collect())
+    Ok(batch
+        .schema()
+        .fields()
+        .iter()
+        .enumerate()
+        .map(|(idx, f)| {
+            FieldInfo::new(
+                f.name().to_string(),
+                None,
+                None,
+                arrow_to_pg_type(f.data_type()),
+                format.format_for(idx),
+            )
+        })
+        .collect())
 }
 
 fn batches_to_json_rows(batches: &[RecordBatch]) -> Vec<BTreeMap<String, serde_json::Value>> {
@@ -460,28 +476,38 @@ fn decode_parameters(params: &[Option<Bytes>], types: &[Type]) -> Vec<Option<ser
         .zip(types.iter())
         .map(|(param, typ)| match (param, typ) {
             (None, _) => None,
-            (Some(bytes), &Type::INT2) => Some(serde_json::json!(i16::from_be_bytes(bytes[..].try_into().unwrap()))),
-            (Some(bytes), &Type::INT4) => Some(serde_json::json!(i32::from_be_bytes(bytes[..].try_into().unwrap()))),
-            (Some(bytes), &Type::INT8) => Some(serde_json::json!(i64::from_be_bytes(bytes[..].try_into().unwrap()))),
-            (Some(bytes), &Type::OID) => Some(serde_json::json!(u32::from_be_bytes(bytes[..].try_into().unwrap()))),
+            (Some(bytes), &Type::INT2) => Some(serde_json::json!(i16::from_be_bytes(
+                bytes[..].try_into().unwrap()
+            ))),
+            (Some(bytes), &Type::INT4) => Some(serde_json::json!(i32::from_be_bytes(
+                bytes[..].try_into().unwrap()
+            ))),
+            (Some(bytes), &Type::INT8) => Some(serde_json::json!(i64::from_be_bytes(
+                bytes[..].try_into().unwrap()
+            ))),
+            (Some(bytes), &Type::OID) => Some(serde_json::json!(u32::from_be_bytes(
+                bytes[..].try_into().unwrap()
+            ))),
             (Some(bytes), &Type::VARCHAR)
             | (Some(bytes), &Type::TEXT)
             | (Some(bytes), &Type::BPCHAR)
             | (Some(bytes), &Type::NAME)
-            | (Some(bytes), &Type::UNKNOWN) => {
-                Some(serde_json::Value::String(String::from_utf8(bytes.to_vec()).unwrap()))
-            }
+            | (Some(bytes), &Type::UNKNOWN) => Some(serde_json::Value::String(
+                String::from_utf8(bytes.to_vec()).unwrap(),
+            )),
             _ => None,
         })
         .collect()
 }
 
-fn batch_to_row_stream(batch: &RecordBatch, schema: Arc<Vec<FieldInfo>>) -> impl Stream<Item = PgWireResult<DataRow>> {
+fn batch_to_row_stream(
+    batch: &RecordBatch,
+    schema: Arc<Vec<FieldInfo>>,
+) -> impl Stream<Item = PgWireResult<DataRow>> {
     let mut rows = Vec::new();
     for row_idx in 0..batch.num_rows() {
         let mut encoder = DataRowEncoder::new(schema.clone());
         for col in batch.columns() {
-
             // if row_idx == 0 {
             //     println!("col {:?} type {:?}", col, col.data_type());
             // }
@@ -552,59 +578,68 @@ fn batch_to_row_stream(batch: &RecordBatch, schema: Arc<Vec<FieldInfo>>) -> impl
                     encoder.encode_field(&value).unwrap();
                 }
 
-
                 // ---------- TIMESTAMP μs / ms / ns ----------
                 DataType::Timestamp(unit, _) => {
                     match unit {
                         TimeUnit::Microsecond => {
                             use arrow::array::TimestampMicrosecondArray;
-                            let arr =
-                                col.as_any().downcast_ref::<TimestampMicrosecondArray>().unwrap();
+                            let arr = col
+                                .as_any()
+                                .downcast_ref::<TimestampMicrosecondArray>()
+                                .unwrap();
                             let value = if arr.is_null(row_idx) {
                                 None::<String>
                             } else {
-                                let v = arr.value(row_idx);              // micro-seconds
+                                let v = arr.value(row_idx); // micro-seconds
                                 let secs = v / 1_000_000;
                                 let micros = (v % 1_000_000) as u32;
-                                let ts = chrono::NaiveDateTime::from_timestamp_opt(
-                                    secs, micros * 1_000).unwrap();
+                                let ts =
+                                    chrono::NaiveDateTime::from_timestamp_opt(secs, micros * 1_000)
+                                        .unwrap();
                                 Some(ts.format("%Y-%m-%d %H:%M:%S%.6f").to_string())
                             };
                             encoder.encode_field(&value).unwrap();
                         }
                         TimeUnit::Millisecond => {
                             use arrow::array::TimestampMillisecondArray;
-                            let arr =
-                                col.as_any().downcast_ref::<TimestampMillisecondArray>().unwrap();
+                            let arr = col
+                                .as_any()
+                                .downcast_ref::<TimestampMillisecondArray>()
+                                .unwrap();
                             let value = if arr.is_null(row_idx) {
                                 None::<String>
                             } else {
-                                let v = arr.value(row_idx);              // milli-seconds
+                                let v = arr.value(row_idx); // milli-seconds
                                 let secs = v / 1_000;
                                 let millis = (v % 1_000) as u32;
                                 let ts = chrono::NaiveDateTime::from_timestamp_opt(
-                                    secs, millis * 1_000_000).unwrap();
+                                    secs,
+                                    millis * 1_000_000,
+                                )
+                                .unwrap();
                                 Some(ts.format("%Y-%m-%d %H:%M:%S%.3f").to_string())
                             };
                             encoder.encode_field(&value).unwrap();
                         }
                         TimeUnit::Nanosecond => {
                             use arrow::array::TimestampNanosecondArray;
-                            let arr =
-                                col.as_any().downcast_ref::<TimestampNanosecondArray>().unwrap();
+                            let arr = col
+                                .as_any()
+                                .downcast_ref::<TimestampNanosecondArray>()
+                                .unwrap();
                             let value = if arr.is_null(row_idx) {
                                 None::<String>
                             } else {
-                                let v = arr.value(row_idx);              // nano-seconds
+                                let v = arr.value(row_idx); // nano-seconds
                                 let secs = v / 1_000_000_000;
                                 let nanos = (v % 1_000_000_000) as u32;
-                                let ts = chrono::NaiveDateTime::from_timestamp_opt(
-                                    secs, nanos).unwrap();
+                                let ts =
+                                    chrono::NaiveDateTime::from_timestamp_opt(secs, nanos).unwrap();
                                 Some(ts.format("%Y-%m-%d %H:%M:%S%.9f").to_string())
                             };
                             encoder.encode_field(&value).unwrap();
                         }
-                        _ => unreachable!(),   // TimeUnit::Second isn’t used by Arrow today
+                        _ => unreachable!(), // TimeUnit::Second isn’t used by Arrow today
                     }
                 }
                 DataType::Boolean => {
@@ -636,7 +671,7 @@ fn batch_to_row_stream(batch: &RecordBatch, schema: Arc<Vec<FieldInfo>>) -> impl
                     };
                     encoder.encode_field(&value).unwrap();
                 }
-                                
+
                 _ => {
                     if col.is_null(row_idx) {
                         encoder.encode_field::<Option<&str>>(&None).unwrap();
@@ -690,44 +725,46 @@ impl SimpleQueryHandler for DatafusionBackend {
             let rows = stream::iter(vec![Ok(row)]);
             return Ok(vec![Response::Query(QueryResponse::new(field_infos, rows))]);
         } else if let Some(var) = Self::parse_show_variable(trimmed) {
-            if let Some(resp) = self.show_variable_response(&var.to_lowercase(), FieldFormat::Text) {
+            if let Some(resp) = self.show_variable_response(&var.to_lowercase(), FieldFormat::Text)
+            {
                 return Ok(vec![resp]);
             }
         } else if lowercase == "" {
             return Ok(vec![Response::Execution(Tag::new(""))]);
         }
 
-
-
         let user = client.metadata().get(pgwire::api::METADATA_USER).cloned();
-        let database = client.metadata().get(pgwire::api::METADATA_DATABASE).cloned();
+        let database = client
+            .metadata()
+            .get(pgwire::api::METADATA_DATABASE)
+            .cloned();
         log::debug!("database: {:?} {:?}", database, user);
 
         let _ = self.register_current_database(client);
         let _ = self.register_session_user(client);
         let _ = self.register_current_user(client);
 
-        let exec_res = dispatch_query(&self.ctx, query, None, None, |ctx, sql, p, t| {
-            async move {
-                let lsql = sql.to_lowercase();
-                if lsql.contains("from users") {
-                    let schema = Arc::new(Schema::new(vec![
-                        Field::new("id", DataType::Int32, false),
-                        Field::new("name", DataType::Utf8, true),
-                    ]));
-                    let batch = RecordBatch::try_new(
-                        schema.clone(),
-                        vec![
-                            Arc::new(Int32Array::from(vec![1, 2])) as ArrayRef,
-                            Arc::new(StringArray::from(vec![Some("Alice"), Some("Bob")])) as ArrayRef,
-                        ],
-                    ).unwrap();
-                    Ok((vec![batch], schema))
-                } else {
-                    execute_sql(ctx, sql, p, t).await
-                }
+        let exec_res = dispatch_query(&self.ctx, query, None, None, |ctx, sql, p, t| async move {
+            let lsql = sql.to_lowercase();
+            if lsql.contains("from users") {
+                let schema = Arc::new(Schema::new(vec![
+                    Field::new("id", DataType::Int32, false),
+                    Field::new("name", DataType::Utf8, true),
+                ]));
+                let batch = RecordBatch::try_new(
+                    schema.clone(),
+                    vec![
+                        Arc::new(Int32Array::from(vec![1, 2])) as ArrayRef,
+                        Arc::new(StringArray::from(vec![Some("Alice"), Some("Bob")])) as ArrayRef,
+                    ],
+                )
+                .unwrap();
+                Ok((vec![batch], schema))
+            } else {
+                execute_sql(ctx, sql, p, t).await
             }
-        }).await;
+        })
+        .await;
         let (results, schema) = match exec_res {
             Ok(v) => v,
             Err(e) => {
@@ -807,7 +844,6 @@ impl ExtendedQueryHandler for DatafusionBackend {
     where
         C: ClientInfo + Unpin + Send + Sync,
     {
-
         log::debug!(
             "query start extended {:?} {:?}",
             portal.statement.statement.as_str(),
@@ -836,11 +872,13 @@ impl ExtendedQueryHandler for DatafusionBackend {
             let rows = stream::iter(vec![Ok(row)]);
             return Ok(Response::Query(QueryResponse::new(field_infos, rows)));
         } else if let Some(var) = Self::parse_show_variable(sql_trim) {
-            if let Some(resp) = self.show_variable_response(&var.to_lowercase(), portal.result_column_format.format_for(0)) {
+            if let Some(resp) = self.show_variable_response(
+                &var.to_lowercase(),
+                portal.result_column_format.format_for(0),
+            ) {
                 return Ok(resp);
             }
         }
-            
 
         let _ = self.register_current_database(client);
         let _ = self.register_session_user(client);
@@ -862,20 +900,24 @@ impl ExtendedQueryHandler for DatafusionBackend {
                         schema.clone(),
                         vec![
                             Arc::new(Int32Array::from(vec![1, 2])) as ArrayRef,
-                            Arc::new(StringArray::from(vec![Some("Alice"), Some("Bob")])) as ArrayRef,
+                            Arc::new(StringArray::from(vec![Some("Alice"), Some("Bob")]))
+                                as ArrayRef,
                         ],
-                    ).unwrap();
+                    )
+                    .unwrap();
                     Ok((vec![batch], schema))
                 } else {
                     execute_sql(ctx, sql, params, types).await
                 }
             },
-        ).await;
+        )
+        .await;
         let (results, schema) = match exec_res {
             Ok(v) => v,
             Err(e) => {
                 if let Some(c) = &self.capture {
-                    let params = decode_parameters(&portal.parameters, &portal.statement.parameter_types);
+                    let params =
+                        decode_parameters(&portal.parameters, &portal.statement.parameter_types);
                     c.append(CapturedQuery {
                         query: portal.statement.statement.clone(),
                         parameters: params,
@@ -887,7 +929,6 @@ impl ExtendedQueryHandler for DatafusionBackend {
                 return Err(PgWireError::ApiError(Box::new(e)));
             }
         };
-
 
         let batch = if results.is_empty() {
             RecordBatch::new_empty(schema.clone())
@@ -919,7 +960,7 @@ impl ExtendedQueryHandler for DatafusionBackend {
         C: ClientInfo + Unpin + Send + Sync,
     {
         log::debug!("do_describe_statement");
-        
+
         let sql_trim = stmt.statement.trim();
         let lowercase = sql_trim.to_lowercase();
 
@@ -938,8 +979,20 @@ impl ExtendedQueryHandler for DatafusionBackend {
             return Ok(DescribeStatementResponse::new(vec![], fields));
         } else if lowercase.starts_with("show ") {
             let fields = vec![
-                FieldInfo::new("name".to_string(), None, None, Type::TEXT, FieldFormat::Binary),
-                FieldInfo::new("setting".to_string(), None, None, Type::TEXT, FieldFormat::Binary),
+                FieldInfo::new(
+                    "name".to_string(),
+                    None,
+                    None,
+                    Type::TEXT,
+                    FieldFormat::Binary,
+                ),
+                FieldInfo::new(
+                    "setting".to_string(),
+                    None,
+                    None,
+                    Type::TEXT,
+                    FieldFormat::Binary,
+                ),
             ];
             return Ok(DescribeStatementResponse::new(vec![], fields));
         }
@@ -949,7 +1002,6 @@ impl ExtendedQueryHandler for DatafusionBackend {
             .map_err(|e| PgWireError::ApiError(Box::new(e)))?;
 
         log::debug!("do_describe_statement {:?}", schema);
-
 
         if results.is_empty() {
             return Ok(DescribeStatementResponse::new(vec![], vec![]));
@@ -970,7 +1022,6 @@ impl ExtendedQueryHandler for DatafusionBackend {
     where
         C: ClientInfo + Unpin + Send + Sync,
     {
-
         log::debug!("do_describe_portal");
         let sql_trim = portal.statement.statement.trim();
         let lowercase = sql_trim.to_lowercase();
@@ -990,16 +1041,32 @@ impl ExtendedQueryHandler for DatafusionBackend {
             return Ok(DescribePortalResponse::new(fields));
         } else if lowercase.starts_with("show ") {
             let fields = vec![
-                FieldInfo::new("name".to_string(), None, None, Type::TEXT, portal.result_column_format.format_for(0)),
-                FieldInfo::new("setting".to_string(), None, None, Type::TEXT, portal.result_column_format.format_for(1)),
+                FieldInfo::new(
+                    "name".to_string(),
+                    None,
+                    None,
+                    Type::TEXT,
+                    portal.result_column_format.format_for(0),
+                ),
+                FieldInfo::new(
+                    "setting".to_string(),
+                    None,
+                    None,
+                    Type::TEXT,
+                    portal.result_column_format.format_for(1),
+                ),
             ];
             return Ok(DescribePortalResponse::new(fields));
         }
 
-        let (results, schema) = execute_sql(&self.ctx, portal.statement.statement.as_str(),
+        let (results, schema) = execute_sql(
+            &self.ctx,
+            portal.statement.statement.as_str(),
             Some(portal.parameters.clone()),
             Some(portal.statement.parameter_types.clone()),
-        ).await.map_err(|e| PgWireError::ApiError(Box::new(e)))?;
+        )
+        .await
+        .map_err(|e| PgWireError::ApiError(Box::new(e)))?;
 
         // println!("do_describe_portal {:?}", schema);
 
@@ -1019,7 +1086,8 @@ pub struct DatafusionBackendFactory {
 }
 
 impl PgWireServerHandlers for DatafusionBackendFactory {
-    type StartupHandler = Md5PasswordAuthStartupHandler<DummyAuthSource, DefaultServerParameterProvider>;
+    type StartupHandler =
+        Md5PasswordAuthStartupHandler<DummyAuthSource, DefaultServerParameterProvider>;
     type SimpleQueryHandler = DatafusionBackend;
     type ExtendedQueryHandler = DatafusionBackend;
     type CopyHandler = NoopCopyHandler;
@@ -1078,7 +1146,6 @@ pub async fn start_server(
     _default_schema: &str,
     capture: Option<std::path::PathBuf>,
 ) -> anyhow::Result<()> {
-
     let listener = TcpListener::bind(addr).await?;
     log::info!("Listening on {}", addr);
 
@@ -1087,7 +1154,7 @@ pub async fn start_server(
     loop {
         let (socket, _) = listener.accept().await?;
         if let Some(socket) = detect_gssencmode(socket).await {
-            let ctx = base_ctx.clone();            
+            let ctx = base_ctx.clone();
             let factory = Arc::new(DatafusionBackendFactory {
                 handler: Arc::new(DatafusionBackend::new(
                     Arc::clone(&ctx),
@@ -1101,11 +1168,9 @@ pub async fn start_server(
                     log::error!("connection error: {:?}", e);
                 }
             });
-
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {

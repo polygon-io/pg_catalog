@@ -3,25 +3,25 @@
 // Allows tests to inspect which tables and columns were accessed.
 
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
-use datafusion::catalog::{Session};
-use datafusion::datasource::{MemTable, TableProvider, TableType};
+use arrow::record_batch::RecordBatch;
+use async_trait::async_trait;
+use datafusion::catalog::Session;
 use datafusion::datasource::provider::TableProviderFilterPushDown;
+use datafusion::datasource::{MemTable, TableProvider, TableType};
+use datafusion::error::Result;
 use datafusion::execution::context::SessionContext;
 use datafusion::execution::TaskContext;
 use datafusion::logical_expr::dml::InsertOp;
 use datafusion::logical_expr::Expr;
 use datafusion::physical_plan::empty::EmptyExec;
 use datafusion::physical_plan::ExecutionPlan;
-use datafusion::error::Result;
-use async_trait::async_trait;
-use arrow::record_batch::RecordBatch;
 
 use serde_json::json;
 
-use std::collections::{BTreeMap};
-use std::sync::{Arc, Mutex};
 use arrow::compute::concat_batches;
 use datafusion::physical_plan::collect;
+use std::collections::BTreeMap;
+use std::sync::{Arc, Mutex};
 
 pub fn map_pg_type(pg_type: &str) -> DataType {
     let lower = pg_type.to_lowercase();
@@ -56,8 +56,6 @@ impl SchemaAccess for ScanTrace {
     }
 }
 
-
-
 #[derive(Debug, Clone)]
 pub struct ScanTrace {
     table: String,
@@ -75,7 +73,12 @@ pub struct ObservableMemTable {
 }
 
 impl ObservableMemTable {
-    pub fn new(table_name: String, schema: SchemaRef, log: Arc<Mutex<Vec<ScanTrace>>>, data: Vec<RecordBatch>) -> Self {
+    pub fn new(
+        table_name: String,
+        schema: SchemaRef,
+        log: Arc<Mutex<Vec<ScanTrace>>>,
+        data: Vec<RecordBatch>,
+    ) -> Self {
         let mem = MemTable::try_new(schema.clone(), vec![data]).unwrap();
         Self {
             table_name,
@@ -100,7 +103,10 @@ impl TableProvider for ObservableMemTable {
         TableType::Base
     }
 
-    fn supports_filters_pushdown(&self, filters: &[&Expr]) -> Result<Vec<TableProviderFilterPushDown>> {
+    fn supports_filters_pushdown(
+        &self,
+        filters: &[&Expr],
+    ) -> Result<Vec<TableProviderFilterPushDown>> {
         Ok(vec![TableProviderFilterPushDown::Inexact; filters.len()])
     }
 
@@ -132,11 +138,12 @@ impl TableProvider for ObservableMemTable {
         input: Arc<dyn ExecutionPlan>,
         insert_op: InsertOp,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        let task_ctx: Arc<TaskContext> = if let Some(ctx) = state.as_any().downcast_ref::<SessionContext>() {
-            ctx.task_ctx()
-        } else {
-            Arc::new(TaskContext::from(state))
-        };
+        let task_ctx: Arc<TaskContext> =
+            if let Some(ctx) = state.as_any().downcast_ref::<SessionContext>() {
+                ctx.task_ctx()
+            } else {
+                Arc::new(TaskContext::from(state))
+            };
 
         let mut new_batches = collect(input, task_ctx).await?;
         let merged = match insert_op {
@@ -161,22 +168,29 @@ impl TableProvider for ObservableMemTable {
 
         Ok(Arc::new(EmptyExec::new(self.schema.clone())))
     }
-
 }
 
-pub fn print_execution_log(log:Arc<Mutex<Vec<ScanTrace>>>){
-    let out: Vec<_> = log.lock().unwrap().iter().map(|entry| {
-        let columns: Vec<_> = match &entry.projection {
-            Some(p) => p.iter().map(|i| entry.schema().field(*i).name().clone()).collect(),
-            None => entry.types.keys().cloned().collect(),
-        };
-        json!({
-            "table": entry.table,
-            "columns": columns,
-            "filters": entry.filters.iter().map(|f| f.to_string()).collect::<Vec<_>>(),
-            "types": entry.types,
+pub fn print_execution_log(log: Arc<Mutex<Vec<ScanTrace>>>) {
+    let out: Vec<_> = log
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|entry| {
+            let columns: Vec<_> = match &entry.projection {
+                Some(p) => p
+                    .iter()
+                    .map(|i| entry.schema().field(*i).name().clone())
+                    .collect(),
+                None => entry.types.keys().cloned().collect(),
+            };
+            json!({
+                "table": entry.table,
+                "columns": columns,
+                "filters": entry.filters.iter().map(|f| f.to_string()).collect::<Vec<_>>(),
+                "types": entry.types,
+            })
         })
-    }).collect();
+        .collect();
 
     log::info!("{}", serde_json::to_string_pretty(&out).unwrap());
 }

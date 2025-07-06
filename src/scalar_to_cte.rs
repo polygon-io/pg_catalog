@@ -1,65 +1,65 @@
 #![allow(unused_imports)]
 /*───────────────────────────────────────────────────────────────────────────────
-  Scalar-subquery-to-CTE re-writer
-  ──────────────────────────────────────────────────────────────────────────────
+Scalar-subquery-to-CTE re-writer
+──────────────────────────────────────────────────────────────────────────────
 
-  WHY WE BUILT IT
-  ═══════════════
-  DataFusion’s logical plan *hates* correlated scalar sub-queries:
-    • they prevent predicate push-down and join re-ordering,
-    • they’re rewritten into a naïve “pull up every row, evaluate per row”
-      execution which is disastrously slow on large tables.
+WHY WE BUILT IT
+═══════════════
+DataFusion’s logical plan *hates* correlated scalar sub-queries:
+  • they prevent predicate push-down and join re-ordering,
+  • they’re rewritten into a naïve “pull up every row, evaluate per row”
+    execution which is disastrously slow on large tables.
 
-  Turning…
+Turning…
 
-      SELECT …,
-             (SELECT max(b)
-              FROM   t2
-              WHERE  t2.id = t1.id)      -- correlated scalar
-      FROM t1
+    SELECT …,
+           (SELECT max(b)
+            FROM   t2
+            WHERE  t2.id = t1.id)      -- correlated scalar
+    FROM t1
 
-  …into…
+…into…
 
-      WITH __cte1 AS (
-          SELECT max(b), t2.id           -- key(s) & scalar value
-          FROM   t2
-          GROUP BY t2.id
-      )
-      SELECT …,
-             __cte1.col                  -- scalar becomes simple column ref
-      FROM t1
-      LEFT JOIN __cte1 ON t1.id = __cte1.id
+    WITH __cte1 AS (
+        SELECT max(b), t2.id           -- key(s) & scalar value
+        FROM   t2
+        GROUP BY t2.id
+    )
+    SELECT …,
+           __cte1.col                  -- scalar becomes simple column ref
+    FROM t1
+    LEFT JOIN __cte1 ON t1.id = __cte1.id
 
-  removes the correlation barrier: the optimiser sees only joins + a WITH
-  block, all of which it already handles well.
+removes the correlation barrier: the optimiser sees only joins + a WITH
+block, all of which it already handles well.
 
-  PARKING-LOT – IDEAS / TODOS
-  ═══════════════════════════
-    1. EXISTS / NOT EXISTS   ─ rewrite into semi-/anti-joins.
-    2. UNION / INTERSECT     ─ support set-ops inside the scalar sub-query.
-    3. Complex projections   ─ sub-queries embedded in wider expressions.
-    4. General “outer-only” predicates (t1.x > 10, t1.flag = 1, …).
-    5. Multiple scalars in one expression (cte1.col + cte2.col).
-    6. Stable synthetic alias numbering across nested rewrites.
-    7. Avoid name clashes if inner query already exposes a `col` column.
-    8. Cache helper template parses for speed.
-    9. Pretty printer for the resulting SQL (line breaks, indent).
-   10. Deep-nesting unit tests (scalar within scalar within …).
+PARKING-LOT – IDEAS / TODOS
+═══════════════════════════
+  1. EXISTS / NOT EXISTS   ─ rewrite into semi-/anti-joins.
+  2. UNION / INTERSECT     ─ support set-ops inside the scalar sub-query.
+  3. Complex projections   ─ sub-queries embedded in wider expressions.
+  4. General “outer-only” predicates (t1.x > 10, t1.flag = 1, …).
+  5. Multiple scalars in one expression (cte1.col + cte2.col).
+  6. Stable synthetic alias numbering across nested rewrites.
+  7. Avoid name clashes if inner query already exposes a `col` column.
+  8. Cache helper template parses for speed.
+  9. Pretty printer for the resulting SQL (line breaks, indent).
+ 10. Deep-nesting unit tests (scalar within scalar within …).
 
-  ─────────────────────────────────────────────────────────────────────────────*/
+─────────────────────────────────────────────────────────────────────────────*/
 
+use sqlparser::ast::ObjectNamePart;
 use sqlparser::ast::*;
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
-use sqlparser::ast::ObjectNamePart;
 
 use datafusion::error::{DataFusionError, Result};
-use std::collections::HashSet;
 use sqlparser::ast::GroupByExpr;
+use std::collections::HashSet;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RewriteOutcome {
-    pub sql:       String,
+    pub sql: String,
     pub converted: usize,
 }
 
@@ -154,7 +154,7 @@ mod visitor {
         fn visit_expr(&mut self, expr: &Expr) {
             match expr {
                 Expr::Subquery(_) => self.scalars.push(expr.clone()),
-                Expr::Exists { .. } => self.scalars.push(expr.clone()), 
+                Expr::Exists { .. } => self.scalars.push(expr.clone()),
 
                 Expr::Function(func) => {
                     if let FunctionArguments::List(list) = &func.args {
@@ -175,7 +175,6 @@ mod visitor {
                         }
                     }
                 }
-                
 
                 // Binary
                 Expr::BinaryOp { left, right, .. } => {
@@ -186,7 +185,6 @@ mod visitor {
                 // Nested
                 Expr::Nested(e) => self.visit_expr(e),
 
-
                 Expr::Case {
                     operand,
                     conditions,
@@ -195,18 +193,18 @@ mod visitor {
                     if let Some(op) = operand {
                         self.visit_expr(op);
                     }
-                
+
                     // walk WHEN … THEN … pairs
                     for CaseWhen { condition, result } in conditions {
                         self.visit_expr(condition);
                         self.visit_expr(result);
                     }
-                
+
                     if let Some(er) = else_result {
                         self.visit_expr(er);
                     }
                 }
-                
+
                 // CAST (only one variant in this sqlparser version)
                 Expr::Cast { expr, .. } => self.visit_expr(expr),
 
@@ -228,24 +226,23 @@ mod rewriter {
 
     #[derive(Debug)]
     struct PendingRewrite<'a> {
-        expr_slot : &'a mut Expr,   
-        info      : CorrelatedInfo, 
+        expr_slot: &'a mut Expr,
+        info: CorrelatedInfo,
     }
 
     #[derive(Debug)]
     struct CorrelatedInfo {
-        cte_ident    : Ident,
-        subquery     : Box<Query>,
-        on_pairs     : Vec<CorrPred>,  // t1.id = t2.id ...
-        outer_only   : Vec<Expr>,      // t1.flag, t1.x > 10, …
-        orig_alias   : Option<Ident>,
+        cte_ident: Ident,
+        subquery: Box<Query>,
+        on_pairs: Vec<CorrPred>, // t1.id = t2.id ...
+        outer_only: Vec<Expr>,   // t1.flag, t1.x > 10, …
+        orig_alias: Option<Ident>,
         outer_aliases: Vec<Ident>,
     }
 
     // ------------------------------------------------------------
     // ★ Correlation discovery utilities
     // ------------------------------------------------------------
-
 
     /// walk the expression and return *all* column paths it contains
     fn collect_paths(e: &Expr, out: &mut Vec<Vec<Ident>>) {
@@ -255,8 +252,7 @@ mod rewriter {
                 collect_paths(left, out);
                 collect_paths(right, out);
             }
-            Expr::UnaryOp { expr, .. }
-            | Expr::Nested(expr) => collect_paths(expr, out),
+            Expr::UnaryOp { expr, .. } | Expr::Nested(expr) => collect_paths(expr, out),
 
             Expr::Cast { expr, .. } => collect_paths(expr, out),
             Expr::Case {
@@ -289,11 +285,8 @@ mod rewriter {
             return false;
         }
         // … and *no* reference to any other alias
-        paths
-            .iter()
-            .all(|p| p.first() == Some(outer))
+        paths.iter().all(|p| p.first() == Some(outer))
     }
-
 
     /// `t1.id = t2.id`  →  `(outer=id, inner=id)`
     #[derive(Debug, Clone)]
@@ -307,13 +300,12 @@ mod rewriter {
     struct CorrPred {
         outer: Vec<Ident>,
         inner: Vec<Ident>,
-        op   : BinaryOperator,        // =  <>  <  <=  >  >=
-        is_any : bool,            // true  ↔  came from  oid = ANY(arr)
+        op: BinaryOperator, // =  <>  <  <=  >  >=
+        is_any: bool,       // true  ↔  came from  oid = ANY(arr)
     }
 
     /// walk a boolean expression and collect `outer = inner` pairs
     fn collect_corr_preds(e: &Expr, outer_alias: &Ident, out: &mut Vec<CorrPred>) {
-
         if let Expr::AnyOp {
             left,
             compare_op: BinaryOperator::Eq,
@@ -323,15 +315,15 @@ mod rewriter {
         {
             let l = as_path(left);
             let r = as_path(right);
-    
+
             match (l.first(), r.first()) {
                 //  oid  = ANY(pol.polroles)
                 (Some(a), Some(b)) if b == outer_alias && a != outer_alias => {
                     let cand = CorrPred {
                         outer: r,
                         inner: l,
-                        op:    BinaryOperator::Eq,   // keep the operator
-                        is_any: true
+                        op: BinaryOperator::Eq, // keep the operator
+                        is_any: true,
                     };
                     if !out.contains(&cand) {
                         out.push(cand);
@@ -342,8 +334,8 @@ mod rewriter {
                     let cand = CorrPred {
                         outer: l,
                         inner: r,
-                        op:    BinaryOperator::Eq,
-                        is_any: true
+                        op: BinaryOperator::Eq,
+                        is_any: true,
                     };
                     if !out.contains(&cand) {
                         out.push(cand);
@@ -351,37 +343,53 @@ mod rewriter {
                 }
                 _ => {}
             }
-            return;     // already handled – don’t fall through
+            return; // already handled – don’t fall through
         }
 
         match e {
-            Expr::BinaryOp { op: BinaryOperator::And, left, right } => {
-                collect_corr_preds(left,  outer_alias, out);
+            Expr::BinaryOp {
+                op: BinaryOperator::And,
+                left,
+                right,
+            } => {
+                collect_corr_preds(left, outer_alias, out);
                 collect_corr_preds(right, outer_alias, out);
             }
 
             Expr::BinaryOp { op, left, right }
-                if matches!(op,
+                if matches!(
+                    op,
                     BinaryOperator::Eq
-                  | BinaryOperator::NotEq
-                  | BinaryOperator::Lt
-                  | BinaryOperator::LtEq
-                  | BinaryOperator::Gt
-                  | BinaryOperator::GtEq) =>
+                        | BinaryOperator::NotEq
+                        | BinaryOperator::Lt
+                        | BinaryOperator::LtEq
+                        | BinaryOperator::Gt
+                        | BinaryOperator::GtEq
+                ) =>
             {
                 let (l, r) = (as_path(left), as_path(right));
                 match (l.first(), r.first()) {
                     (Some(a), Some(b)) if a == outer_alias && b != outer_alias => {
-                        let cand = CorrPred { outer: l, inner: r, op: op.clone(), is_any: false };
+                        let cand = CorrPred {
+                            outer: l,
+                            inner: r,
+                            op: op.clone(),
+                            is_any: false,
+                        };
                         if !out.contains(&cand) {
                             out.push(cand);
                         }
                     }
                     (Some(a), Some(b)) if b == outer_alias && a != outer_alias => {
-                            let cand = CorrPred { outer: r, inner: l, op: op.clone(), is_any: false };
-                            if !out.contains(&cand) {
-                                out.push(cand);
-                            }
+                        let cand = CorrPred {
+                            outer: r,
+                            inner: l,
+                            op: op.clone(),
+                            is_any: false,
+                        };
+                        if !out.contains(&cand) {
+                            out.push(cand);
+                        }
                     }
                     _ => {}
                 }
@@ -395,11 +403,11 @@ mod rewriter {
         match e {
             Expr::CompoundIdentifier(p) => p.clone(),
             // make "id" look like ["id"]  (needed for  id = ANY(t.arr) )
-            Expr::Identifier(id)        => vec![id.clone()],
+            Expr::Identifier(id) => vec![id.clone()],
             _ => vec![],
         }
     }
-    
+
     /// flatten `a AND b AND c` → `[a, b, c]`
     fn split_and(e: &Expr) -> Vec<Expr> {
         match e {
@@ -423,10 +431,10 @@ mod rewriter {
             1 => Some(parts.pop().unwrap()),
             _ => {
                 let right = parts.pop().unwrap();
-                let left  = build_and(parts).unwrap();
+                let left = build_and(parts).unwrap();
                 Some(Expr::BinaryOp {
-                    left : Box::new(left),
-                    op   : BinaryOperator::And,
+                    left: Box::new(left),
+                    op: BinaryOperator::And,
                     right: Box::new(right),
                 })
             }
@@ -438,8 +446,8 @@ mod rewriter {
     fn is_same_pred(e: &Expr, p: &CorrPred) -> bool {
         if let Expr::BinaryOp { op, left, right } = e {
             if op == &p.op {
-                return  (as_path(left)  == p.outer && as_path(right) == p.inner)
-                    || (as_path(right) == p.outer && as_path(left)  == p.inner);
+                return (as_path(left) == p.outer && as_path(right) == p.inner)
+                    || (as_path(right) == p.outer && as_path(left) == p.inner);
             }
         }
 
@@ -451,70 +459,72 @@ mod rewriter {
         } = e
         {
             return p.is_any
-            && (
-                (as_path(left)  == p.inner && as_path(right) == p.outer)
-             || (as_path(right) == p.inner && as_path(left)  == p.outer)
-            );
+                && ((as_path(left) == p.inner && as_path(right) == p.outer)
+                    || (as_path(right) == p.inner && as_path(left) == p.outer));
         }
-    
-        
+
         false
     }
 
-
     #[derive(Default)]
     pub(super) struct ScalarToCte {
-        pub converted : usize,
-        cte_counter   : usize,
+        pub converted: usize,
+        cte_counter: usize,
     }
 
     impl ScalarToCte {
-        pub fn new() -> Self { Self::default() }
-
+        pub fn new() -> Self {
+            Self::default()
+        }
 
         /// walk an expression tree, returning:
         ///   * `has_aggr` – did we see any aggregate function?
         ///   * `cols`     – top-level column references *outside* aggregates
-        fn scan_expr(e: &Expr,
-                    inside_aggr: bool,
-                    has_aggr: &mut bool,
-                    cols: &mut Vec<Expr>) {
-
+        fn scan_expr(e: &Expr, inside_aggr: bool, has_aggr: &mut bool, cols: &mut Vec<Expr>) {
             match e {
                 Expr::Function(f) => {
                     // ── take the unqualified function name (last identifier) ─────────
-                    let base_name = f          // ObjectName
+                    let base_name = f // ObjectName
                         .name
                         .0
                         .last()
-                        .and_then(|p| p.as_ident())   // returns &Ident
+                        .and_then(|p| p.as_ident()) // returns &Ident
                         .map(|ident| ident.value.to_lowercase())
                         .unwrap_or_default();
-                
+
                     // is this an aggregate we need to regard specially?
-                    let is_aggr = ["count", "sum", "avg", "min", "max", "pg_get_array", "array_agg", "array"]
-                        .contains(&base_name.as_str());
-                
+                    let is_aggr = [
+                        "count",
+                        "sum",
+                        "avg",
+                        "min",
+                        "max",
+                        "pg_get_array",
+                        "array_agg",
+                        "array",
+                    ]
+                    .contains(&base_name.as_str());
+
                     if is_aggr {
                         *has_aggr = true;
                     }
-                
+
                     // recurse into the argument expressions
                     if let FunctionArguments::List(list) = &f.args {
                         for arg in &list.args {
                             if let FunctionArg::Unnamed(FunctionArgExpr::Expr(bx)) = arg {
-                                let new_inside = inside_aggr || is_aggr; 
+                                let new_inside = inside_aggr || is_aggr;
                                 Self::scan_expr(bx, new_inside, has_aggr, cols);
                             }
                         }
                     }
                 }
                 Expr::CompoundIdentifier(_) | Expr::Identifier(_) if !inside_aggr => {
-                    cols.push(e.clone());               // plain column
+                    cols.push(e.clone()); // plain column
                 }
                 // recurse through the usual suspects …
                 Expr::BinaryOp { left, right, .. } => {
-                    Self::scan_expr(left,  inside_aggr, has_aggr, cols);
+                    Self::scan_expr(left, inside_aggr, has_aggr, cols);
                     Self::scan_expr(right, inside_aggr, has_aggr, cols);
                 }
                 Expr::Nested(inner)
@@ -522,13 +532,18 @@ mod rewriter {
                 | Expr::Cast { expr: inner, .. } => {
                     Self::scan_expr(inner, inside_aggr, has_aggr, cols);
                 }
-                Expr::Case { operand, conditions, else_result, .. } => {
+                Expr::Case {
+                    operand,
+                    conditions,
+                    else_result,
+                    ..
+                } => {
                     if let Some(op) = operand {
                         Self::scan_expr(op, inside_aggr, has_aggr, cols);
                     }
                     for CaseWhen { condition, result } in conditions {
                         Self::scan_expr(condition, inside_aggr, has_aggr, cols);
-                        Self::scan_expr(result,    inside_aggr, has_aggr, cols);
+                        Self::scan_expr(result, inside_aggr, has_aggr, cols);
                     }
                     if let Some(er) = else_result {
                         Self::scan_expr(er, inside_aggr, has_aggr, cols);
@@ -538,12 +553,11 @@ mod rewriter {
             }
         }
 
-
         fn has_user_group_by(g: &GroupByExpr) -> bool {
             match g {
-                GroupByExpr::All(_)                       => true,          //  GROUP BY ALL
+                GroupByExpr::All(_) => true, //  GROUP BY ALL
                 GroupByExpr::Expressions(exprs, _) if !exprs.is_empty() => true,
-                _                                         => false,
+                _ => false,
             }
         }
 
@@ -552,29 +566,30 @@ mod rewriter {
             if Self::has_user_group_by(&sel.group_by) {
                 return;
             }
-            
-            let mut has_aggr  = false;        // saw COUNT/SUM/…
-            let mut cols      = Vec::<Expr>::new();
-            let mut total_proj= 0_usize;      // how many projection items?
-        
+
+            let mut has_aggr = false; // saw COUNT/SUM/…
+            let mut cols = Vec::<Expr>::new();
+            let mut total_proj = 0_usize; // how many projection items?
+
             for item in &sel.projection {
-                if let SelectItem::UnnamedExpr(e)
-                    | SelectItem::ExprWithAlias { expr: e, .. } = item
+                if let SelectItem::UnnamedExpr(e) | SelectItem::ExprWithAlias { expr: e, .. } = item
                 {
                     total_proj += 1;
                     Self::scan_expr(e, false, &mut has_aggr, &mut cols);
                 }
-            }  
-        
+            }
+
             // do we mix “plain columns” with “anything else”?
             let mix_plain_and_other = !cols.is_empty() && cols.len() < total_proj;
-        
+
             if has_aggr || mix_plain_and_other {
                 // deduplicate column list
                 let mut seen = HashSet::new();
-                let exprs: Vec<Expr> =
-                    cols.into_iter().filter(|c| seen.insert(c.clone())).collect();
-        
+                let exprs: Vec<Expr> = cols
+                    .into_iter()
+                    .filter(|c| seen.insert(c.clone()))
+                    .collect();
+
                 sel.group_by = GroupByExpr::Expressions(exprs, Vec::new());
             }
         }
@@ -608,28 +623,36 @@ mod rewriter {
                 Expr::Function(func) => {
                     if let FunctionArguments::List(list) = &mut func.args {
                         for arg in &mut list.args {
-                    if let FunctionArg::Unnamed(FunctionArgExpr::Expr(boxed))
-                    | FunctionArg::Named { arg: FunctionArgExpr::Expr(boxed), .. } = arg
-                    {
-                        self.rewrite_expr(boxed, outer_aliases, w, sel);
-                    }
+                            if let FunctionArg::Unnamed(FunctionArgExpr::Expr(boxed))
+                            | FunctionArg::Named {
+                                arg: FunctionArgExpr::Expr(boxed),
+                                ..
+                            } = arg
+                            {
+                                self.rewrite_expr(boxed, outer_aliases, w, sel);
+                            }
                         }
                     }
                 }
                 Expr::BinaryOp { left, right, .. } => {
-                    self.rewrite_expr(left,  outer_aliases, w, sel);
+                    self.rewrite_expr(left, outer_aliases, w, sel);
                     self.rewrite_expr(right, outer_aliases, w, sel);
                 }
-                Expr::Nested(inner)        => self.rewrite_expr(inner, outer_aliases, w, sel),
+                Expr::Nested(inner) => self.rewrite_expr(inner, outer_aliases, w, sel),
                 Expr::UnaryOp { expr, .. } => self.rewrite_expr(expr, outer_aliases, w, sel),
-                Expr::Cast { expr, .. }    => self.rewrite_expr(expr, outer_aliases, w, sel),
-                Expr::Case { operand, conditions, else_result, .. } => {
+                Expr::Cast { expr, .. } => self.rewrite_expr(expr, outer_aliases, w, sel),
+                Expr::Case {
+                    operand,
+                    conditions,
+                    else_result,
+                    ..
+                } => {
                     if let Some(op) = operand {
                         self.rewrite_expr(op, outer_aliases, w, sel);
                     }
                     for CaseWhen { condition, result } in conditions {
                         self.rewrite_expr(condition, outer_aliases, w, sel);
-                        self.rewrite_expr(result,    outer_aliases, w, sel);
+                        self.rewrite_expr(result, outer_aliases, w, sel);
                     }
                     if let Some(er) = else_result {
                         self.rewrite_expr(er, outer_aliases, w, sel);
@@ -651,8 +674,8 @@ mod rewriter {
 
         fn make_cross_join(alias: &Ident) -> Join {
             // dummy base table so we can grab the Join node
-            let tmp = super::parse_sql(&format!("SELECT * FROM x CROSS JOIN {alias}"))
-                .expect("parser");
+            let tmp =
+                super::parse_sql(&format!("SELECT * FROM x CROSS JOIN {alias}")).expect("parser");
             if let Statement::Query(q) = tmp {
                 if let SetExpr::Select(sel) = q.body.as_ref() {
                     return sel.from[0].joins[0].clone();
@@ -660,13 +683,11 @@ mod rewriter {
             }
             unreachable!("template shape changed")
         }
-    
+
         fn make_left_join(alias: &Ident) -> Join {
-            let tmp = super::parse_sql(&format!(
-                "SELECT * FROM x LEFT JOIN {alias} ON true"
-            ))
-            .expect("parser");
-        
+            let tmp = super::parse_sql(&format!("SELECT * FROM x LEFT JOIN {alias} ON true"))
+                .expect("parser");
+
             if let Statement::Query(q) = tmp {
                 if let SetExpr::Select(sel) = q.body.as_ref() {
                     return sel.from[0].joins[0].clone();
@@ -685,13 +706,16 @@ mod rewriter {
                 match tf {
                     TableFactor::Table { name, .. } => {
                         if name.0.len() == 1 {
-                            name.0.insert(0, ObjectNamePart::Identifier(Ident::new("pg_catalog")));
+                            name.0
+                                .insert(0, ObjectNamePart::Identifier(Ident::new("pg_catalog")));
                         }
                     }
                     TableFactor::Derived { subquery, .. } => {
                         ScalarToCte::qualify_pg_catalog_tables(subquery);
                     }
-                    TableFactor::NestedJoin { table_with_joins, .. } => {
+                    TableFactor::NestedJoin {
+                        table_with_joins, ..
+                    } => {
                         qualify_factor(&mut table_with_joins.relation);
                         for j in &mut table_with_joins.joins {
                             qualify_factor(&mut j.relation);
@@ -730,7 +754,7 @@ mod rewriter {
                 _ => unreachable!(),
             };
             cte.alias.name = alias.clone();
-            cte.query      = subq;
+            cte.query = subq;
             cte
         }
 
@@ -746,16 +770,15 @@ mod rewriter {
             sel_item: &SelectItem,
             outer_aliases: &[Ident],
         ) -> Option<CorrelatedInfo> {
-            
             let expr = match sel_item {
-                SelectItem::UnnamedExpr(e)
-                | SelectItem::ExprWithAlias { expr: e, .. } => e,
+                SelectItem::UnnamedExpr(e) | SelectItem::ExprWithAlias { expr: e, .. } => e,
                 _ => return None,
             };
-        
-            let Expr::Subquery(sub) = expr else { return None };
 
-        
+            let Expr::Subquery(sub) = expr else {
+                return None;
+            };
+
             // we only support plain SELECT sub-queries for now
             if let SetExpr::Select(inner_sel) = sub.body.as_ref() {
                 let mut pairs = Vec::<CorrPred>::new();
@@ -782,7 +805,10 @@ mod rewriter {
 
                 let mut unique = Vec::new();
                 for expr in outer_only.into_iter() {
-                    if !unique.iter().any(|e: &Expr| e.to_string() == expr.to_string()) {
+                    if !unique
+                        .iter()
+                        .any(|e: &Expr| e.to_string() == expr.to_string())
+                    {
                         unique.push(expr);
                     }
                 }
@@ -806,62 +832,59 @@ mod rewriter {
 
         fn push_cte(&mut self, outer_with: &mut Option<With>, info: &CorrelatedInfo) {
             let w = self.ensure_with(outer_with);
-        
+
             // --- clone & strip correlated filters ------------------
             let mut subq = (*info.subquery).clone();
             if let SetExpr::Select(inner_sel) = subq.body.as_mut() {
-                    Self::strip_corr_filters(inner_sel,
-                                                &info.on_pairs,
-                                                &info.outer_aliases);
+                Self::strip_corr_filters(inner_sel, &info.on_pairs, &info.outer_aliases);
 
+                /* --------------------------------------------------------
+                 * 1.  Ensure the *scalar value* itself is exposed
+                 *     as  col  inside the CTE so the outer query
+                 *     can safely reference  __cteN.col
+                 * --------------------------------------------------------*/
+                // ---- make the first projection look like  expr AS col --------------
+                if let Some(SelectItem::UnnamedExpr(mut expr)) =
+                    inner_sel.projection.first().cloned()
+                {
+                    // rewrite any outer references inside the expression
+                    Self::replace_outer_refs(&mut expr, &info.on_pairs);
 
-                    /* --------------------------------------------------------
-                     * 1.  Ensure the *scalar value* itself is exposed
-                     *     as  col  inside the CTE so the outer query
-                     *     can safely reference  __cteN.col
-                     * --------------------------------------------------------*/
-                    // ---- make the first projection look like  expr AS col --------------
-                    if let Some(SelectItem::UnnamedExpr(mut expr)) = inner_sel.projection.first().cloned() {
-                        // rewrite any outer references inside the expression
-                        Self::replace_outer_refs(&mut expr, &info.on_pairs);
+                    // overwrite the first entry in-place
+                    inner_sel.projection[0] = SelectItem::ExprWithAlias {
+                        expr,
+                        alias: Ident::new("col"),
+                    };
+                }
 
-                        // overwrite the first entry in-place
-                        inner_sel.projection[0] = SelectItem::ExprWithAlias {
-                            expr,
-                            alias: Ident::new("col"),
-                        };
-                    }
-
-                    
-                    // helper – add "col_path" unless already there
-                    let mut ensure_proj = |path: &Vec<Ident>| {
-                        let already = inner_sel.projection.iter().any(|item| {
-                            matches!(item,
+                // helper – add "col_path" unless already there
+                let mut ensure_proj = |path: &Vec<Ident>| {
+                    let already = inner_sel.projection.iter().any(|item| {
+                        matches!(item,
                                 SelectItem::UnnamedExpr(
                                     Expr::CompoundIdentifier(p)) if p == path)
-                        });
-                        if !already {
-                            inner_sel.projection.push(
-                                SelectItem::UnnamedExpr(
-                                    Expr::CompoundIdentifier(path.clone()))
-                            );
-                        }
-                    };
-                    
-                    // ---- gather every inner-side column that will be used by the JOIN ----
-                    let mut need: Vec<Vec<Ident>> = Vec::new();
-                    for p in &info.on_pairs {
-                        if !need.contains(&p.inner) {
-                            need.push(p.inner.clone());
-                        }
+                    });
+                    if !already {
+                        inner_sel.projection.push(SelectItem::UnnamedExpr(
+                            Expr::CompoundIdentifier(path.clone()),
+                        ));
                     }
+                };
 
+                // ---- gather every inner-side column that will be used by the JOIN ----
+                let mut need: Vec<Vec<Ident>> = Vec::new();
+                for p in &info.on_pairs {
+                    if !need.contains(&p.inner) {
+                        need.push(p.inner.clone());
+                    }
+                }
 
-                    for p in need { ensure_proj(&p); }
+                for p in need {
+                    ensure_proj(&p);
+                }
 
-                    // ensure aggregates with join columns are grouped
-                    self.inject_group_by(inner_sel);
-
+                // ensure aggregates with join columns are grouped
+                self.inject_group_by(inner_sel);
             }
 
             // prefix unqualified tables inside the CTE with pg_catalog
@@ -876,27 +899,19 @@ mod rewriter {
             if sel.from.is_empty() {
                 sel.from.push(Self::make_from_entry(&info.cte_ident));
             } else {
-                sel.from[0]
-                    .joins
-                    .push(
-                        self.build_left_join(
-                            &info.cte_ident,
-                            &info.on_pairs,
-                            &info.outer_only,
-                        )
-                    );
+                sel.from[0].joins.push(self.build_left_join(
+                    &info.cte_ident,
+                    &info.on_pairs,
+                    &info.outer_only,
+                ));
             }
         }
 
-        fn strip_corr_filters(
-            sel: &mut Select,
-            pairs: &[CorrPred],
-            outer_aliases: &[Ident],
-        ) {
-            
+        fn strip_corr_filters(sel: &mut Select, pairs: &[CorrPred], outer_aliases: &[Ident]) {
             if let Some(pred) = &sel.selection {
                 let mut keep: Vec<Expr> = vec![];
-                for conjunct in split_and(pred) {          // helper to de-AND
+                for conjunct in split_and(pred) {
+                    // helper to de-AND
                     let lifted = pairs.iter().any(|p| is_same_pred(&conjunct, p));
                     let outer_only = outer_aliases.iter().any(|a| is_outer_only(&conjunct, a));
                     if !lifted && !outer_only {
@@ -905,9 +920,8 @@ mod rewriter {
                         }
                     }
                 }
-                sel.selection = build_and(keep);           // None if empty
+                sel.selection = build_and(keep); // None if empty
             }
-
         }
 
         fn replace_outer_refs(expr: &mut Expr, pairs: &[CorrPred]) {
@@ -938,7 +952,10 @@ mod rewriter {
                         for arg in &mut list.args {
                             match arg {
                                 FunctionArg::Unnamed(FunctionArgExpr::Expr(e))
-                                | FunctionArg::Named { arg: FunctionArgExpr::Expr(e), .. } => {
+                                | FunctionArg::Named {
+                                    arg: FunctionArgExpr::Expr(e),
+                                    ..
+                                } => {
                                     Self::replace_outer_refs(e, pairs);
                                 }
                                 _ => {}
@@ -955,7 +972,12 @@ mod rewriter {
                 | Expr::Cast { expr: inner, .. } => {
                     Self::replace_outer_refs(inner, pairs);
                 }
-                Expr::Case { operand, conditions, else_result, .. } => {
+                Expr::Case {
+                    operand,
+                    conditions,
+                    else_result,
+                    ..
+                } => {
                     if let Some(op) = operand {
                         Self::replace_outer_refs(op, pairs);
                     }
@@ -970,99 +992,90 @@ mod rewriter {
                 _ => {}
             }
         }
-             
+
         fn make_ref(info: &CorrelatedInfo) -> Expr {
-            Expr::CompoundIdentifier(vec![
-                info.cte_ident.clone(),
-                Ident::new("col"),
-            ])
+            Expr::CompoundIdentifier(vec![info.cte_ident.clone(), Ident::new("col")])
         }
 
-        fn build_left_join(
-            &self,
-            alias      : &Ident,
-            pairs      : &[CorrPred],
-            outer_only : &[Expr],
-    ) -> Join {
-        let mut join = Self::make_left_join(alias);
-    
-        // helper:   t2.id  →  __cteN.id
-        let rewrite_inner = |path: &Vec<Ident>| -> Expr {
-            let mut new = path.clone();
-            let first   = new[0].clone();      // remember the column
-            new[0] = alias.clone();            //  ⟶  __cteN …
-            if new.len() == 1 {                // add “id” back:  __cteN.id
-                new.push(first);
-            }
-            Expr::CompoundIdentifier(new)
-        };
-    
-        // -------------------------------------------------------------
-        // 1. build ON-predicate from the correlated comparisons
-        // -------------------------------------------------------------
-        let mut on : Option<Expr> = None;
-    
-        for p in pairs {
-            let pred = if p.is_any {
-                // __cteN.oid = ANY(pol.roles)
-                Expr::AnyOp {
-                    left        : Box::new(rewrite_inner(&p.inner)),
-                    compare_op  : p.op.clone(),         // always “=”
-                    right       : Box::new(
-                                    Expr::CompoundIdentifier(p.outer.clone())),
-                    is_some     : false,
+        fn build_left_join(&self, alias: &Ident, pairs: &[CorrPred], outer_only: &[Expr]) -> Join {
+            let mut join = Self::make_left_join(alias);
+
+            // helper:   t2.id  →  __cteN.id
+            let rewrite_inner = |path: &Vec<Ident>| -> Expr {
+                let mut new = path.clone();
+                let first = new[0].clone(); // remember the column
+                new[0] = alias.clone(); //  ⟶  __cteN …
+                if new.len() == 1 {
+                    // add “id” back:  __cteN.id
+                    new.push(first);
                 }
-            } else {
-                // plain binary comparison  ( =  <>  <  … )
-                Expr::BinaryOp {
-                    left  : Box::new(
-                                Expr::CompoundIdentifier(p.outer.clone())),
-                    op    : p.op.clone(),
-                    right : Box::new(rewrite_inner(&p.inner)),
-                }
+                Expr::CompoundIdentifier(new)
             };
-    
-            on = Some(match on {
-                None        => pred,
-                Some(cur)   => Expr::BinaryOp {
-                    left  : Box::new(cur),
-                    op    : BinaryOperator::And,
-                    right : Box::new(pred),
-                },
-            });
-        }
-    
-        // -------------------------------------------------------------
-        // 2. tack on the “outer-only” predicates (t1.flag, …)
-        //     skip any that duplicate a correlated comparison
-        // -------------------------------------------------------------
-        let mut outer_only_filtered: Vec<Expr> = Vec::new();
-        for pred in outer_only {
-            if !pairs.iter().any(|p| is_same_pred(pred, p)) {
-                outer_only_filtered.push(pred.clone());
+
+            // -------------------------------------------------------------
+            // 1. build ON-predicate from the correlated comparisons
+            // -------------------------------------------------------------
+            let mut on: Option<Expr> = None;
+
+            for p in pairs {
+                let pred = if p.is_any {
+                    // __cteN.oid = ANY(pol.roles)
+                    Expr::AnyOp {
+                        left: Box::new(rewrite_inner(&p.inner)),
+                        compare_op: p.op.clone(), // always “=”
+                        right: Box::new(Expr::CompoundIdentifier(p.outer.clone())),
+                        is_some: false,
+                    }
+                } else {
+                    // plain binary comparison  ( =  <>  <  … )
+                    Expr::BinaryOp {
+                        left: Box::new(Expr::CompoundIdentifier(p.outer.clone())),
+                        op: p.op.clone(),
+                        right: Box::new(rewrite_inner(&p.inner)),
+                    }
+                };
+
+                on = Some(match on {
+                    None => pred,
+                    Some(cur) => Expr::BinaryOp {
+                        left: Box::new(cur),
+                        op: BinaryOperator::And,
+                        right: Box::new(pred),
+                    },
+                });
             }
+
+            // -------------------------------------------------------------
+            // 2. tack on the “outer-only” predicates (t1.flag, …)
+            //     skip any that duplicate a correlated comparison
+            // -------------------------------------------------------------
+            let mut outer_only_filtered: Vec<Expr> = Vec::new();
+            for pred in outer_only {
+                if !pairs.iter().any(|p| is_same_pred(pred, p)) {
+                    outer_only_filtered.push(pred.clone());
+                }
+            }
+            for pred in &outer_only_filtered {
+                on = Some(match on {
+                    None => pred.clone(),
+                    Some(cur) => Expr::BinaryOp {
+                        left: Box::new(cur),
+                        op: BinaryOperator::And,
+                        right: Box::new(pred.clone()),
+                    },
+                });
+            }
+
+            // -------------------------------------------------------------
+            // 3. install the ON-clause (defaults to “true” if we built none)
+            // -------------------------------------------------------------
+            if let Some(expr) = on {
+                join.join_operator = JoinOperator::LeftOuter(JoinConstraint::On(expr));
+            }
+
+            join
         }
-        for pred in &outer_only_filtered {
-            on = Some(match on {
-                None        => pred.clone(),
-                Some(cur)   => Expr::BinaryOp {
-                    left  : Box::new(cur),
-                    op    : BinaryOperator::And,
-                    right : Box::new(pred.clone()),
-                },
-            });
-        }
-    
-        // -------------------------------------------------------------
-        // 3. install the ON-clause (defaults to “true” if we built none)
-        // -------------------------------------------------------------
-        if let Some(expr) = on {
-            join.join_operator = JoinOperator::LeftOuter(JoinConstraint::On(expr));
-        }
-    
-        join
-    }
-    
+
         /* ---------- mut-visitor ---------- */
 
         pub fn visit_statement_mut(&mut self, s: &mut Statement) {
@@ -1078,7 +1091,6 @@ mod rewriter {
         }
 
         fn visit_select_mut(&mut self, w: &mut Option<With>, sel: &mut Select) {
-
             // ---------- outer alias (very first table name / alias) ----------
             // gather aliases from FROM clause (main table and joins)
             let mut outer_aliases: Vec<Ident> = Vec::new();
@@ -1112,7 +1124,6 @@ mod rewriter {
 
             // ---------- recurse into every projection expr first ----------
 
-
             // 1) Move everything out – ends the &mut borrow immediately.
             let drained: Vec<SelectItem> = sel.projection.drain(..).collect();
 
@@ -1120,7 +1131,7 @@ mod rewriter {
             let mut new_proj = Vec::with_capacity(drained.len());
             for mut item in drained {
                 if let SelectItem::UnnamedExpr(ref mut expr)
-                    | SelectItem::ExprWithAlias { ref mut expr, .. } = item
+                | SelectItem::ExprWithAlias { ref mut expr, .. } = item
                 {
                     let before = self.converted;
 
@@ -1133,7 +1144,7 @@ mod rewriter {
                                 alias: Ident::new(format!("subq{}", self.converted)),
                             };
                         }
-                    }                    
+                    }
                 }
                 new_proj.push(item);
             }
@@ -1150,8 +1161,7 @@ mod rewriter {
             // ---------- 1st pass: collect what needs rewriting ----------
             let mut collected = Vec::<(usize, CorrelatedInfo)>::new();
             for (idx, item) in sel.projection.iter().enumerate() {
-                if let SelectItem::UnnamedExpr(e)
-                | SelectItem::ExprWithAlias { expr: e, .. } = item
+                if let SelectItem::UnnamedExpr(e) | SelectItem::ExprWithAlias { expr: e, .. } = item
                 {
                     if let Some(info) = self.analyse_scalar(item, &outer_aliases) {
                         collected.push((idx, info));
@@ -1168,23 +1178,21 @@ mod rewriter {
             // ---------- 3rd pass: patch projection expressions ----------
             for (idx, info) in collected {
                 let replacement_expr = Self::make_ref(&info);
-            
+
                 sel.projection[idx] = if let Some(alias) = info.orig_alias {
                     SelectItem::ExprWithAlias {
-                        expr : replacement_expr,
+                        expr: replacement_expr,
                         alias,
                     }
                 } else {
                     SelectItem::ExprWithAlias {
-                        expr : replacement_expr,
+                        expr: replacement_expr,
                         alias: Ident::new(format!("subq{}", self.converted + 1)),
                     }
                 };
                 self.converted += 1;
             }
-
         }
-    
     }
 }
 
@@ -1199,7 +1207,7 @@ mod tests {
     #[tokio::test]
     async fn rewrite_noop_roundtrip() -> Result<()> {
         let original = "SELECT 1";
-        let outcome  = rewrite(original)?;
+        let outcome = rewrite(original)?;
         assert_eq!(outcome.sql, original);
         assert_eq!(outcome.converted, 0);
         Ok(())
@@ -1213,7 +1221,7 @@ mod tests {
               (SELECT max(b) FROM t2) AS s1,
               (SELECT count(*) FROM t3 WHERE t3.x = t1.x) AS s2
             FROM t1"#;
-        let stmt   = parse_sql(sql)?;
+        let stmt = parse_sql(sql)?;
         let finder = ScalarFinder::find(&stmt);
         assert_eq!(finder.scalars.len(), 2);
         Ok(())
@@ -1275,7 +1283,6 @@ mod tests {
         Ok(())
     }
 
-
     #[test]
     fn rewrite_equality_join() -> Result<()> {
         let q = "SELECT (SELECT max(b) FROM t2 WHERE t2.id = t1.id) FROM t1";
@@ -1298,29 +1305,27 @@ mod tests {
         log::debug!("rewrite_inequality_join {:?}", out);
 
         assert!(
-                out.sql.contains("t1.val <> __cte1.val")
-                || out.sql.contains("__cte1.val <> t1.val"),
-                "inequality predicate not found in JOIN"
-            );
+            out.sql.contains("t1.val <> __cte1.val") || out.sql.contains("__cte1.val <> t1.val"),
+            "inequality predicate not found in JOIN"
+        );
         Ok(())
     }
-
 
     #[test]
     fn keeps_explicit_alias() -> Result<()> {
         let q = "SELECT (SELECT 1) AS answer";
         let out = rewrite(q)?;
         log::debug!("keeps_explicit_alias {:?}", out);
-        assert!(out.sql.contains("answer"));      // alias survived
+        assert!(out.sql.contains("answer")); // alias survived
         Ok(())
     }
-    
+
     #[test]
     fn synthesises_alias_when_missing() -> Result<()> {
         let q = "SELECT (SELECT 1)";
         let out = rewrite(q)?;
         log::debug!("synthesises_alias_when_missing {:?}", out);
-        assert!(out.sql.contains("subq1"));       // our synthetic alias
+        assert!(out.sql.contains("subq1")); // our synthetic alias
         Ok(())
     }
 
@@ -1332,19 +1337,19 @@ mod tests {
         log::debug!("cte_strips_correlated_filters {:?} : ", out);
 
         let sql = out.sql;
-    
+
         // 1) CTE body must *not* reference the outer table
         assert!(
             !sql.contains("t2.id = t1.id"),
             "outer predicate leaked into CTE"
         );
-    
+
         // 2) join ON-clause must contain the lifted predicate
         assert!(
             sql.contains("t1.id = __cte1.id"),
             "lifted predicate missing from JOIN"
         );
-    
+
         // 3) the non-correlated filter must still be inside the CTE
         assert!(
             sql.contains("flag = 'Y'"),
@@ -1352,7 +1357,6 @@ mod tests {
         );
         Ok(())
     }
-
 
     #[test]
     fn outer_only_predicate_removed() -> Result<()> {
@@ -1376,7 +1380,10 @@ mod tests {
         let q = "SELECT (SELECT 1 FROM t2 b WHERE b.id = j.id) FROM t1 i JOIN t1 j ON i.id = j.id";
         let out = rewrite(q)?;
         log::debug!("correlated_with_second_alias {:?}", out.sql);
-        assert!(out.sql.contains("j.id = __cte1.id"), "join predicate not using second alias");
+        assert!(
+            out.sql.contains("j.id = __cte1.id"),
+            "join predicate not using second alias"
+        );
         Ok(())
     }
 
@@ -1387,16 +1394,16 @@ mod tests {
                     FROM   t2
                     WHERE  t2.id = t1.id)    -- correlated predicate
             FROM t1";
-    
+
         let out = rewrite(q)?;
         let sql = out.sql;
-    
+
         // 1) the inner column appears in the CTE SELECT-list
         assert!(
             sql.contains("SELECT t2.id") || sql.contains(", t2.id"),
             "join key t2.id not projected by CTE"
         );
-    
+
         // 2) the ON-clause uses the projected column
         assert!(
             sql.contains("t1.id = __cte1.id"),
@@ -1404,7 +1411,7 @@ mod tests {
         );
         Ok(())
     }
-    
+
     #[test]
     fn cte_projects_multiple_keys() -> Result<()> {
         let q = "
@@ -1419,14 +1426,11 @@ mod tests {
 
         // Both columns must be selected by the CTE
         for col in ["t2.x", "t2.y"] {
-            assert!(
-                sql.contains(col),
-                "{col} not projected by CTE"
-            );
+            assert!(sql.contains(col), "{col} not projected by CTE");
         }
 
         // And appear (rewritten) inside the JOIN
-        assert!(sql.contains("t1.x = __cte1.x"),  "x predicate missing");
+        assert!(sql.contains("t1.x = __cte1.x"), "x predicate missing");
         assert!(
             sql.contains("t1.y <> __cte1.y") || sql.contains("__cte1.y <> t1.y"),
             "y predicate missing"
@@ -1462,18 +1466,15 @@ mod tests {
               AND a.attnum  > 0
               AND NOT a.attisdropped;
         "#;
-    
+
         let sql = rewrite(q)?.sql;
-    
+
         // scalar exposed
         assert!(sql.contains("__cte1.col"), "scalar alias 'col' missing");
-    
+
         // join-key columns projected by CTEs
         for k in ["d.adrelid", "d.adnum", "c.oid", "t.oid", "t.typcollation"] {
-            assert!(
-                sql.contains(k),
-                "{k} not projected inside CTE"
-            );
+            assert!(sql.contains(k), "{k} not projected inside CTE");
         }
         Ok(())
     }
@@ -1485,12 +1486,15 @@ mod tests {
                     (SELECT rolname FROM pg_catalog.pg_roles ORDER BY 1)
                 )";
         let out = rewrite(sql)?;
-        let s   = out.sql;
+        let s = out.sql;
 
         assert!(out.converted >= 1, "no scalar was rewritten");
-        assert!(s.starts_with("WITH"),               "missing WITH");
-        assert!(s.contains("__cte1"),                "missing CTE name");
-        assert!(s.contains("pg_get_array(__cte1.col"), "function arg not rewritten");
+        assert!(s.starts_with("WITH"), "missing WITH");
+        assert!(s.contains("__cte1"), "missing CTE name");
+        assert!(
+            s.contains("pg_get_array(__cte1.col"),
+            "function arg not rewritten"
+        );
         Ok(())
     }
 
@@ -1506,28 +1510,27 @@ mod tests {
                     WHERE  id = ANY(t.arr)
                    )
             FROM t"#;
-    
+
         let out = rewrite(sql)?;
-        let s   = out.sql;
-        
+        let s = out.sql;
+
         log::debug!("rewrite_eq_any_predicate {:?}", s);
 
         // 1) we created a CTE
         assert!(s.starts_with("WITH __cte1"), "no CTE injected");
-    
+
         // 2) the join is LEFT and contains the ANY() predicate
         assert!(
             (s.contains("LEFT OUTER JOIN __cte1") || s.contains("LEFT JOIN __cte1"))
-            && s.contains("__cte1.id = ANY(t.arr)"),
+                && s.contains("__cte1.id = ANY(t.arr)"),
             "correlated ANY() predicate missing from JOIN"
         );
-    
+
         // 3) the scalar ref was replaced by __cte1.col
         assert!(s.contains("SELECT __cte1.col"), "scalar not rewritten");
-    
+
         Ok(())
     }
-
 
     #[test]
     fn injects_group_by_for_mixed_projection() -> Result<()> {
@@ -1587,9 +1590,18 @@ mod tests {
         let s = out.sql.clone();
         log::debug!("rewritten: {}", s);
 
-        assert!(s.contains("cls.oid = __cte1.adrelid"), "cls predicate not in JOIN");
-        assert!(s.contains("attr.attnum = __cte1.adnum"), "attr predicate not in JOIN");
-        assert!(!s.contains("WHERE adrelid = cls.oid"), "predicate left in CTE");
+        assert!(
+            s.contains("cls.oid = __cte1.adrelid"),
+            "cls predicate not in JOIN"
+        );
+        assert!(
+            s.contains("attr.attnum = __cte1.adnum"),
+            "attr predicate not in JOIN"
+        );
+        assert!(
+            !s.contains("WHERE adrelid = cls.oid"),
+            "predicate left in CTE"
+        );
 
         Ok(())
     }
@@ -1604,7 +1616,10 @@ mod tests {
         assert!(s.contains("LEFT OUTER JOIN __cte2"));
         assert!(s.contains("rel.oid = __cte1.tgrelid"));
         assert!(s.contains("rel.oid = __cte2.tgrelid"));
-        assert!(!s.contains("tgrelid = rel.oid AND tgrelid"), "duplicate predicate found");
+        assert!(
+            !s.contains("tgrelid = rel.oid AND tgrelid"),
+            "duplicate predicate found"
+        );
 
         Ok(())
     }
@@ -1616,8 +1631,14 @@ mod tests {
         let out = rewrite(sql)?;
         let s = out.sql.to_lowercase();
 
-        assert!(s.contains("pg_get_expr(adbin, adrelid)"), "outer reference not rewritten");
-        assert!(s.contains("cls.oid = __cte1.adrelid"), "join predicate missing");
+        assert!(
+            s.contains("pg_get_expr(adbin, adrelid)"),
+            "outer reference not rewritten"
+        );
+        assert!(
+            s.contains("cls.oid = __cte1.adrelid"),
+            "join predicate missing"
+        );
 
         Ok(())
     }
@@ -1654,9 +1675,18 @@ mod tests {
 
         assert!(lowered.starts_with("with __cte1"), "cte not injected");
         assert!(lowered.contains("left outer join __cte1"), "join missing");
-        assert!(lowered.contains("cls.oid = __cte1.adrelid"), "cls predicate missing");
-        assert!(lowered.contains("attr.attnum = __cte1.adnum"), "attr predicate missing");
-        assert!(lowered.contains("case when atthasdef then __cte1.col"), "scalar not replaced inside case");
+        assert!(
+            lowered.contains("cls.oid = __cte1.adrelid"),
+            "cls predicate missing"
+        );
+        assert!(
+            lowered.contains("attr.attnum = __cte1.adnum"),
+            "attr predicate missing"
+        );
+        assert!(
+            lowered.contains("case when atthasdef then __cte1.col"),
+            "scalar not replaced inside case"
+        );
 
         Ok(())
     }
@@ -1666,10 +1696,13 @@ mod tests {
         let sql = "SELECT (SELECT pg_attrdef.adbin FROM pg_attrdef WHERE adrelid = cls.oid AND adnum = attr.attnum) FROM pg_attribute AS attr JOIN pg_class AS cls ON cls.oid = attr.attrelid";
         let out = rewrite(sql)?;
         let lowered = out.sql.to_lowercase();
-        assert!(lowered.contains("from pg_catalog.pg_attrdef"), "inner table not qualified");
+        assert!(
+            lowered.contains("from pg_catalog.pg_attrdef"),
+            "inner table not qualified"
+        );
         Ok(())
-      }
-  
+    }
+
     #[test]
     fn case_when_exists_scalar_subquery() -> Result<()> {
         let sql = r#"
@@ -1723,11 +1756,18 @@ mod tests {
 
         assert!(lowered.starts_with("with __cte1"), "cte not injected");
         assert!(lowered.contains("left outer join __cte1"), "join missing");
-        assert!(lowered.contains("cls.oid = __cte1.adrelid"), "cls predicate missing");
-        assert!(lowered.contains("attr.attnum = __cte1.adnum"), "attr predicate missing");
-        assert!(lowered.contains("case when atthasdef then __cte1.col"), "scalar not replaced inside case");
+        assert!(
+            lowered.contains("cls.oid = __cte1.adrelid"),
+            "cls predicate missing"
+        );
+        assert!(
+            lowered.contains("attr.attnum = __cte1.adnum"),
+            "attr predicate missing"
+        );
+        assert!(
+            lowered.contains("case when atthasdef then __cte1.col"),
+            "scalar not replaced inside case"
+        );
         Ok(())
     }
-
-
 }

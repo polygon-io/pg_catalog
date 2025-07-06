@@ -1,11 +1,11 @@
-use datafusion_pg_catalog::{dispatch_query, get_base_session_context, start_server};
-use datafusion::execution::context::SessionContext;
 use arrow::datatypes::Schema;
-use std::sync::{Arc, Mutex};
+use datafusion::execution::context::SessionContext;
+use datafusion_pg_catalog::{dispatch_query, get_base_session_context, start_server};
 use std::fs::File;
 use std::io::Read;
 use std::io::Write as IoWrite;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 use zip::write::FileOptions;
 use zip::ZipWriter;
 
@@ -37,19 +37,15 @@ async fn test_get_base_session_context_public() -> datafusion::error::Result<()>
         Some(zip_path.to_str().unwrap()),
         "pgtry".to_string(),
         "public".to_string(),
-        None
-    ).await?;
+        None,
+    )
+    .await?;
     Ok(())
 }
 
 #[tokio::test]
 async fn test_get_base_session_context_embedded() -> datafusion::error::Result<()> {
-    let _ = get_base_session_context(
-        None,
-        "pgtry".to_string(),
-        "public".to_string(),
-        None
-    ).await?;
+    let _ = get_base_session_context(None, "pgtry".to_string(), "public".to_string(), None).await?;
     Ok(())
 }
 
@@ -63,8 +59,12 @@ fn create_zip(path: &Path) {
             continue;
         }
         let mut contents = String::new();
-        File::open(&path).unwrap().read_to_string(&mut contents).unwrap();
-        zip.start_file(path.file_name().unwrap().to_str().unwrap(), options).unwrap();
+        File::open(&path)
+            .unwrap()
+            .read_to_string(&mut contents)
+            .unwrap();
+        zip.start_file(path.file_name().unwrap().to_str().unwrap(), options)
+            .unwrap();
         zip.write_all(contents.as_bytes()).unwrap();
     }
     zip.finish().unwrap();
