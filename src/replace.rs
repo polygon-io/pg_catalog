@@ -2,25 +2,25 @@
 // Provides small parsers and UDFs to emulate PostgreSQL behaviour (e.g., regclass casts) that DataFusion lacks.
 // Added to translate client queries into forms DataFusion understands.
 
-use std::collections::HashMap;
-use std::ops::ControlFlow;
 use arrow::datatypes::DataType as ArrowDataType;
 use datafusion::logical_expr::{create_udf, ColumnarValue, ScalarUDF, Volatility};
 use datafusion::scalar::ScalarValue;
+use std::collections::HashMap;
+use std::ops::ControlFlow;
 
-use sqlparser::ast::{Expr, Function, FunctionArg, FunctionArgExpr, FunctionArguments, Ident, ObjectName, ObjectNamePart, Value};
-use sqlparser::dialect::PostgreSqlDialect;
-use sqlparser::parser::{Parser};
-use datafusion::prelude::SessionContext;
-use sqlparser::ast::*;
-use sqlparser::tokenizer::Span;
-use sqlparser::ast::{
-    visit_expressions_mut, visit_statements_mut, ValueWithSpan,
-};
-use sqlparser::ast::{Statement};
-use sqlparser::ast::OneOrManyWithParens;
 use datafusion::error::{DataFusionError, Result};
-
+use datafusion::prelude::SessionContext;
+use sqlparser::ast::OneOrManyWithParens;
+use sqlparser::ast::Statement;
+use sqlparser::ast::*;
+use sqlparser::ast::{visit_expressions_mut, visit_statements_mut, ValueWithSpan};
+use sqlparser::ast::{
+    Expr, Function, FunctionArg, FunctionArgExpr, FunctionArguments, Ident, ObjectName,
+    ObjectNamePart, Value,
+};
+use sqlparser::dialect::PostgreSqlDialect;
+use sqlparser::parser::Parser;
+use sqlparser::tokenizer::Span;
 
 /* ---------- UDF ---------- */
 /// Register the minimal `regclass` UDF used by some rewrites.
@@ -47,11 +47,11 @@ pub fn regclass_udfs(ctx: &SessionContext) -> Vec<ScalarUDF> {
     vec![regclass]
 }
 
-
 fn add_namespace_to_set_command(obj: &mut ObjectName) {
     if obj.0.len() == 1 {
         let ident = obj.0.remove(0);
-        obj.0.push(ObjectNamePart::Identifier(Ident::new("pg_catalog")));
+        obj.0
+            .push(ObjectNamePart::Identifier(Ident::new("pg_catalog")));
         obj.0.push(ident);
     }
 }
@@ -60,14 +60,16 @@ fn add_namespace_to_set_command(obj: &mut ObjectName) {
 /// unqualified so that clients using bare names still work.
 pub fn replace_set_command_with_namespace(sql: &str) -> Result<String> {
     let dialect = PostgreSqlDialect {};
-    let mut statements = Parser::parse_sql(&dialect, sql)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut statements =
+        Parser::parse_sql(&dialect, sql).map_err(|e| DataFusionError::External(Box::new(e)))?;
 
     let _ = visit_statements_mut(&mut statements, |stmt| {
         if let Statement::SetVariable { variables, .. } = stmt {
             match variables {
                 OneOrManyWithParens::One(obj) => add_namespace_to_set_command(obj),
-                OneOrManyWithParens::Many(list) => list.iter_mut().for_each(add_namespace_to_set_command),
+                OneOrManyWithParens::Many(list) => {
+                    list.iter_mut().for_each(add_namespace_to_set_command)
+                }
             }
         }
         ControlFlow::<()>::Continue(())
@@ -106,8 +108,8 @@ pub fn replace_regclass(sql: &str) -> Result<String> {
     }
 
     let dialect = PostgreSqlDialect {};
-    let mut statements = Parser::parse_sql(&dialect, sql)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut statements =
+        Parser::parse_sql(&dialect, sql).map_err(|e| DataFusionError::External(Box::new(e)))?;
 
     let _ = visit_statements_mut(&mut statements, |stmt| {
         visit_expressions_mut(stmt, |expr| {
@@ -122,39 +124,50 @@ pub fn replace_regclass(sql: &str) -> Result<String> {
                         &obj.0[0],
                         ObjectNamePart::Identifier(id) if id.value.eq_ignore_ascii_case("oid")
                     ) =>
+                {
+                    // Handle inner Cast('text' AS regclass)
+                    if let Expr::Cast {
+                        expr: inner,
+                        data_type: DataType::Regclass,
+                        ..
+                    } = &mut **inner_outer
                     {
-                        // Handle inner Cast('text' AS regclass)
-                        if let Expr::Cast { expr: inner, data_type: DataType::Regclass, .. } =
-                            &mut **inner_outer
+                        if let Expr::Value(ValueWithSpan {
+                            value: Value::SingleQuotedString(s),
+                            ..
+                        }) = &**inner
                         {
-                            if let Expr::Value(ValueWithSpan { value: Value::SingleQuotedString(s), .. }) =
-                                &**inner
-                            {
-                                *expr = make_fn("oid", s);
-                            }
+                            *expr = make_fn("oid", s);
                         }
-                        // Handle inner regclass('text') if it already got rewritten
-                        else if let Expr::Function(f) = &mut **inner_outer {
-                            if f.name.to_string().eq_ignore_ascii_case("regclass") {
-                                if let FunctionArguments::List(list) = &f.args {
-                                    if let Some(FunctionArg::Unnamed(FunctionArgExpr::Expr(
-                                                                         Expr::Value(ValueWithSpan {
-                                                                                         value: Value::SingleQuotedString(s),
-                                                                                         ..
-                                                                                     }),
-                                                                     ))) = list.args.get(0)
-                                    {
-                                        *expr = make_fn("oid", s);
-                                    }
+                    }
+                    // Handle inner regclass('text') if it already got rewritten
+                    else if let Expr::Function(f) = &mut **inner_outer {
+                        if f.name.to_string().eq_ignore_ascii_case("regclass") {
+                            if let FunctionArguments::List(list) = &f.args {
+                                if let Some(FunctionArg::Unnamed(FunctionArgExpr::Expr(
+                                    Expr::Value(ValueWithSpan {
+                                        value: Value::SingleQuotedString(s),
+                                        ..
+                                    }),
+                                ))) = list.args.get(0)
+                                {
+                                    *expr = make_fn("oid", s);
                                 }
                             }
                         }
                     }
+                }
 
                 /* ---------- 2. plain 'text'::regclass ---------- */
-                Expr::Cast { expr: inner, data_type: DataType::Regclass, .. } => {
-                    if let Expr::Value(ValueWithSpan { value: Value::SingleQuotedString(s), .. }) =
-                        &**inner
+                Expr::Cast {
+                    expr: inner,
+                    data_type: DataType::Regclass,
+                    ..
+                } => {
+                    if let Expr::Value(ValueWithSpan {
+                        value: Value::SingleQuotedString(s),
+                        ..
+                    }) = &**inner
                     {
                         *expr = make_fn("regclass", s);
                     }
@@ -182,8 +195,8 @@ pub fn rewrite_pg_custom_operator(sql: &str) -> Result<String> {
     use std::ops::ControlFlow;
 
     let dialect = PostgreSqlDialect {};
-    let mut statements = Parser::parse_sql(&dialect, sql)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut statements =
+        Parser::parse_sql(&dialect, sql).map_err(|e| DataFusionError::External(Box::new(e)))?;
 
     let _ = visit_statements_mut(&mut statements, |stmt| {
         let _ = visit_expressions_mut(stmt, |expr| {
@@ -193,14 +206,13 @@ pub fn rewrite_pg_custom_operator(sql: &str) -> Result<String> {
                         && parts[0].eq_ignore_ascii_case("pg_catalog")
                         && parts[1] == "~"
                     {
-                        *op = BinaryOperator::PGRegexMatch;    // plain `~`
+                        *op = BinaryOperator::PGRegexMatch; // plain `~`
                     }
                 }
             }
             ControlFlow::<()>::Continue(())
         });
         ControlFlow::<()>::Continue(())
-
     });
 
     Ok(statements
@@ -224,8 +236,8 @@ pub fn rewrite_schema_qualified_text(sql: &str) -> Result<String> {
     }
 
     let dialect = PostgreSqlDialect {};
-    let mut stmts = Parser::parse_sql(&dialect, sql)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut stmts =
+        Parser::parse_sql(&dialect, sql).map_err(|e| DataFusionError::External(Box::new(e)))?;
 
     let _ = visit_statements_mut(&mut stmts, |stmt| {
         visit_expressions_mut(stmt, |e| {
@@ -251,15 +263,16 @@ pub fn rewrite_schema_qualified_text(sql: &str) -> Result<String> {
 /// Treat schema qualified casts to built-in types (regclass, regtype,
 /// regnamespace, ...) as plain `TEXT` casts so DataFusion can parse them.
 pub fn rewrite_schema_qualified_custom_types(sql: &str) -> Result<String> {
-    use sqlparser::ast::{visit_expressions_mut, visit_statements_mut,
-                         DataType, Expr, ObjectName, ObjectNamePart};
+    use sqlparser::ast::{
+        visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName, ObjectNamePart,
+    };
     use sqlparser::dialect::PostgreSqlDialect;
     use sqlparser::parser::Parser;
     use std::ops::ControlFlow;
 
     fn is_pg_type(name: &ObjectName, t: &str) -> bool {
-        name.0.len() == 2 &&
-            matches!(
+        name.0.len() == 2
+            && matches!(
                 (&name.0[0], &name.0[1]),
                 (
                     ObjectNamePart::Identifier(a),
@@ -270,17 +283,18 @@ pub fn rewrite_schema_qualified_custom_types(sql: &str) -> Result<String> {
     }
 
     let dialect = PostgreSqlDialect {};
-    let mut stmts = Parser::parse_sql(&dialect, sql)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut stmts =
+        Parser::parse_sql(&dialect, sql).map_err(|e| DataFusionError::External(Box::new(e)))?;
 
     let _ = visit_statements_mut(&mut stmts, |stmt| {
         let _ = visit_expressions_mut(stmt, |e| {
             if let Expr::Cast { data_type, .. } = e {
                 if let DataType::Custom(obj, _) = data_type {
-                    if is_pg_type(obj, "text") 
-                    || is_pg_type(obj, "regtype")
-                    || is_pg_type(obj, "regnamespace") 
-                    || is_pg_type(obj, "regclass") {
+                    if is_pg_type(obj, "text")
+                        || is_pg_type(obj, "regtype")
+                        || is_pg_type(obj, "regnamespace")
+                        || is_pg_type(obj, "regclass")
+                    {
                         *data_type = DataType::Text;
                     }
                 }
@@ -297,13 +311,11 @@ pub fn rewrite_schema_qualified_custom_types(sql: &str) -> Result<String> {
         .join(" "))
 }
 
-
 /// Replace casts to regtype / pg_catalog.regtype with TEXT,
 /// or drop them entirely if they are immediately followed by a TEXT cast.
 pub fn rewrite_regtype_cast(sql: &str) -> Result<String> {
     use sqlparser::ast::{
-        visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName,
-        ObjectNamePart,
+        visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName, ObjectNamePart,
     };
     use sqlparser::dialect::PostgreSqlDialect;
     use sqlparser::parser::Parser;
@@ -313,11 +325,7 @@ pub fn rewrite_regtype_cast(sql: &str) -> Result<String> {
     fn is_regtype(obj: &ObjectName) -> bool {
         match obj.0.as_slice() {
             // unqualified: regtype
-            [ObjectNamePart::Identifier(id)]
-                if id.value.eq_ignore_ascii_case("regtype") =>
-            {
-                true
-            }
+            [ObjectNamePart::Identifier(id)] if id.value.eq_ignore_ascii_case("regtype") => true,
             // qualified: pg_catalog.regtype
             [ObjectNamePart::Identifier(schema), ObjectNamePart::Identifier(id)]
                 if schema.value.eq_ignore_ascii_case("pg_catalog")
@@ -330,8 +338,8 @@ pub fn rewrite_regtype_cast(sql: &str) -> Result<String> {
     }
 
     let dialect = PostgreSqlDialect {};
-    let mut stmts = Parser::parse_sql(&dialect, sql)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut stmts =
+        Parser::parse_sql(&dialect, sql).map_err(|e| DataFusionError::External(Box::new(e)))?;
 
     let _ = visit_statements_mut(&mut stmts, |stmt| {
         let _ = visit_expressions_mut(stmt, |e| {
@@ -358,8 +366,7 @@ pub fn rewrite_regtype_cast(sql: &str) -> Result<String> {
 /// standard `CHAR` type understood by DataFusion.
 pub fn rewrite_char_cast(sql: &str) -> Result<String> {
     use sqlparser::ast::{
-        visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName,
-        ObjectNamePart,
+        visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName, ObjectNamePart,
     };
     use sqlparser::dialect::PostgreSqlDialect;
     use sqlparser::parser::Parser;
@@ -370,14 +377,17 @@ pub fn rewrite_char_cast(sql: &str) -> Result<String> {
             [ObjectNamePart::Identifier(id)] if id.value.eq_ignore_ascii_case("char") => true,
             [ObjectNamePart::Identifier(schema), ObjectNamePart::Identifier(id)]
                 if schema.value.eq_ignore_ascii_case("pg_catalog")
-                    && id.value.eq_ignore_ascii_case("char") => true,
+                    && id.value.eq_ignore_ascii_case("char") =>
+            {
+                true
+            }
             _ => false,
         }
     }
 
     let dialect = PostgreSqlDialect {};
-    let mut stmts = Parser::parse_sql(&dialect, sql)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut stmts =
+        Parser::parse_sql(&dialect, sql).map_err(|e| DataFusionError::External(Box::new(e)))?;
 
     let _ = visit_statements_mut(&mut stmts, |stmt| {
         visit_expressions_mut(stmt, |e| {
@@ -404,8 +414,8 @@ pub fn rewrite_char_cast(sql: &str) -> Result<String> {
 /// `pg_get_keywords` so unqualified calls work inside user queries.
 pub fn rewrite_schema_qualified_udtfs(sql: &str) -> Result<String> {
     use sqlparser::ast::{
-        visit_expressions_mut, visit_relations_mut, visit_statements_mut, Expr,
-        Function, ObjectName, ObjectNamePart,
+        visit_expressions_mut, visit_relations_mut, visit_statements_mut, Expr, Function,
+        ObjectName, ObjectNamePart,
     };
     use sqlparser::dialect::PostgreSqlDialect;
     use sqlparser::parser::Parser;
@@ -433,8 +443,8 @@ pub fn rewrite_schema_qualified_udtfs(sql: &str) -> Result<String> {
     }
 
     let dialect = PostgreSqlDialect {};
-    let mut stmts = Parser::parse_sql(&dialect, sql)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut stmts =
+        Parser::parse_sql(&dialect, sql).map_err(|e| DataFusionError::External(Box::new(e)))?;
     let mut rewritten = false;
 
     let _ = visit_statements_mut(&mut stmts, |stmt| {
@@ -470,8 +480,7 @@ pub fn rewrite_schema_qualified_udtfs(sql: &str) -> Result<String> {
 /// are represented as 64 bit integers in the catalog snapshots.
 pub fn rewrite_xid_cast(sql: &str) -> Result<String> {
     use sqlparser::ast::{
-        visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName,
-        ObjectNamePart,
+        visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName, ObjectNamePart,
     };
     use sqlparser::dialect::PostgreSqlDialect;
     use sqlparser::parser::Parser;
@@ -482,14 +491,17 @@ pub fn rewrite_xid_cast(sql: &str) -> Result<String> {
             [ObjectNamePart::Identifier(id)] if id.value.eq_ignore_ascii_case("xid") => true,
             [ObjectNamePart::Identifier(schema), ObjectNamePart::Identifier(id)]
                 if schema.value.eq_ignore_ascii_case("pg_catalog")
-                    && id.value.eq_ignore_ascii_case("xid") => true,
+                    && id.value.eq_ignore_ascii_case("xid") =>
+            {
+                true
+            }
             _ => false,
         }
     }
 
     let dialect = PostgreSqlDialect {};
-    let mut stmts = Parser::parse_sql(&dialect, sql)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut stmts =
+        Parser::parse_sql(&dialect, sql).map_err(|e| DataFusionError::External(Box::new(e)))?;
 
     let _ = visit_statements_mut(&mut stmts, |stmt| {
         visit_expressions_mut(stmt, |e| {
@@ -516,8 +528,7 @@ pub fn rewrite_xid_cast(sql: &str) -> Result<String> {
 /// planner does not know about PostgreSQL's internal name type.
 pub fn rewrite_name_cast(sql: &str) -> Result<String> {
     use sqlparser::ast::{
-        visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName,
-        ObjectNamePart,
+        visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName, ObjectNamePart,
     };
     use sqlparser::dialect::PostgreSqlDialect;
     use sqlparser::parser::Parser;
@@ -528,14 +539,17 @@ pub fn rewrite_name_cast(sql: &str) -> Result<String> {
             [ObjectNamePart::Identifier(id)] if id.value.eq_ignore_ascii_case("name") => true,
             [ObjectNamePart::Identifier(schema), ObjectNamePart::Identifier(id)]
                 if schema.value.eq_ignore_ascii_case("pg_catalog")
-                    && id.value.eq_ignore_ascii_case("name") => true,
+                    && id.value.eq_ignore_ascii_case("name") =>
+            {
+                true
+            }
             _ => false,
         }
     }
 
     let dialect = PostgreSqlDialect {};
-    let mut stmts = Parser::parse_sql(&dialect, sql)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut stmts =
+        Parser::parse_sql(&dialect, sql).map_err(|e| DataFusionError::External(Box::new(e)))?;
 
     let _ = visit_statements_mut(&mut stmts, |stmt| {
         visit_expressions_mut(stmt, |e| {
@@ -563,8 +577,8 @@ pub fn rewrite_name_cast(sql: &str) -> Result<String> {
 pub fn rewrite_oid_cast(sql: &str) -> Result<String> {
     use sqlparser::ast::{
         visit_expressions_mut, visit_statements_mut, CastKind, DataType, Expr, Function,
-        FunctionArg, FunctionArgExpr, FunctionArguments, FunctionArgumentList,
-        Ident, ObjectName, ObjectNamePart, Value, ValueWithSpan,
+        FunctionArg, FunctionArgExpr, FunctionArgumentList, FunctionArguments, Ident, ObjectName,
+        ObjectNamePart, Value, ValueWithSpan,
     };
     use sqlparser::dialect::PostgreSqlDialect;
     use sqlparser::parser::Parser;
@@ -574,23 +588,36 @@ pub fn rewrite_oid_cast(sql: &str) -> Result<String> {
         match obj.0.as_slice() {
             [ObjectNamePart::Identifier(id)] if id.value.eq_ignore_ascii_case("oid") => true,
             [ObjectNamePart::Identifier(schema), ObjectNamePart::Identifier(id)]
-                if schema.value.eq_ignore_ascii_case("pg_catalog") && id.value.eq_ignore_ascii_case("oid") => true,
+                if schema.value.eq_ignore_ascii_case("pg_catalog")
+                    && id.value.eq_ignore_ascii_case("oid") =>
+            {
+                true
+            }
             _ => false,
         }
     }
 
     let dialect = PostgreSqlDialect {};
-    let mut stmts = Parser::parse_sql(&dialect, sql)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut stmts =
+        Parser::parse_sql(&dialect, sql).map_err(|e| DataFusionError::External(Box::new(e)))?;
 
     let _ = visit_statements_mut(&mut stmts, |stmt| {
         visit_expressions_mut(stmt, |e| {
-            if let Expr::Cast { expr, data_type, .. } = e {
+            if let Expr::Cast {
+                expr, data_type, ..
+            } = e
+            {
                 if let DataType::Custom(obj, _) = data_type {
                     if is_oid(obj) {
-                        let use_int = matches!(expr.as_ref(),
-                            Expr::Value(ValueWithSpan { value: Value::Number(_, _), .. })
-                                | Expr::Value(ValueWithSpan { value: Value::Placeholder(_), .. })
+                        let use_int = matches!(
+                            expr.as_ref(),
+                            Expr::Value(ValueWithSpan {
+                                value: Value::Number(_, _),
+                                ..
+                            }) | Expr::Value(ValueWithSpan {
+                                value: Value::Placeholder(_),
+                                ..
+                            })
                         );
 
                         if use_int {
@@ -602,11 +629,15 @@ pub fn rewrite_oid_cast(sql: &str) -> Result<String> {
                             };
                         } else {
                             *e = Expr::Function(Function {
-                                name: ObjectName(vec![ObjectNamePart::Identifier(Ident::new("oid"))]),
+                                name: ObjectName(vec![ObjectNamePart::Identifier(Ident::new(
+                                    "oid",
+                                ))]),
                                 args: FunctionArguments::List(FunctionArgumentList {
                                     duplicate_treatment: None,
                                     clauses: vec![],
-                                    args: vec![FunctionArg::Unnamed(FunctionArgExpr::Expr(*expr.clone()))],
+                                    args: vec![FunctionArg::Unnamed(FunctionArgExpr::Expr(
+                                        *expr.clone(),
+                                    ))],
                                 }),
                                 over: None,
                                 filter: None,
@@ -637,8 +668,8 @@ pub fn rewrite_oid_cast(sql: &str) -> Result<String> {
 /// short-circuit this pattern by returning NULL directly.
 pub fn rewrite_regoper_cast(sql: &str) -> Result<String> {
     use sqlparser::ast::{
-        visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName,
-        ObjectNamePart, Value, ValueWithSpan,
+        visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName, ObjectNamePart,
+        Value, ValueWithSpan,
     };
     use sqlparser::dialect::PostgreSqlDialect;
     use sqlparser::parser::Parser;
@@ -649,21 +680,27 @@ pub fn rewrite_regoper_cast(sql: &str) -> Result<String> {
             [ObjectNamePart::Identifier(id)] if id.value.eq_ignore_ascii_case("regoper") => true,
             [ObjectNamePart::Identifier(schema), ObjectNamePart::Identifier(id)]
                 if schema.value.eq_ignore_ascii_case("pg_catalog")
-                    && id.value.eq_ignore_ascii_case("regoper") => true,
+                    && id.value.eq_ignore_ascii_case("regoper") =>
+            {
+                true
+            }
             _ => false,
         }
     }
 
     let dialect = PostgreSqlDialect {};
-    let mut stmts = Parser::parse_sql(&dialect, sql)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut stmts =
+        Parser::parse_sql(&dialect, sql).map_err(|e| DataFusionError::External(Box::new(e)))?;
 
     let _ = visit_statements_mut(&mut stmts, |stmt| {
         visit_expressions_mut(stmt, |e| {
             if let Expr::Cast { data_type, .. } = e {
                 if let DataType::Custom(obj, _) = data_type {
                     if is_regoper(obj) {
-                        *e = Expr::Value(ValueWithSpan { value: Value::Null, span: Span::empty() });
+                        *e = Expr::Value(ValueWithSpan {
+                            value: Value::Null,
+                            span: Span::empty(),
+                        });
                     }
                 }
             }
@@ -682,8 +719,7 @@ pub fn rewrite_regoper_cast(sql: &str) -> Result<String> {
 /// Replace casts to regoperator with TEXT.
 pub fn rewrite_regoperator_cast(sql: &str) -> Result<String> {
     use sqlparser::ast::{
-        visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName,
-        ObjectNamePart,
+        visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName, ObjectNamePart,
     };
     use sqlparser::dialect::PostgreSqlDialect;
     use sqlparser::parser::Parser;
@@ -691,16 +727,22 @@ pub fn rewrite_regoperator_cast(sql: &str) -> Result<String> {
 
     fn is_regoperator(obj: &ObjectName) -> bool {
         match obj.0.as_slice() {
-            [ObjectNamePart::Identifier(id)] if id.value.eq_ignore_ascii_case("regoperator") => true,
+            [ObjectNamePart::Identifier(id)] if id.value.eq_ignore_ascii_case("regoperator") => {
+                true
+            }
             [ObjectNamePart::Identifier(schema), ObjectNamePart::Identifier(id)]
-                if schema.value.eq_ignore_ascii_case("pg_catalog") && id.value.eq_ignore_ascii_case("regoperator") => true,
+                if schema.value.eq_ignore_ascii_case("pg_catalog")
+                    && id.value.eq_ignore_ascii_case("regoperator") =>
+            {
+                true
+            }
             _ => false,
         }
     }
 
     let dialect = PostgreSqlDialect {};
-    let mut stmts = Parser::parse_sql(&dialect, sql)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut stmts =
+        Parser::parse_sql(&dialect, sql).map_err(|e| DataFusionError::External(Box::new(e)))?;
 
     let _ = visit_statements_mut(&mut stmts, |stmt| {
         visit_expressions_mut(stmt, |e| {
@@ -726,8 +768,7 @@ pub fn rewrite_regoperator_cast(sql: &str) -> Result<String> {
 /// Replace casts to regprocedure with TEXT.
 pub fn rewrite_regprocedure_cast(sql: &str) -> Result<String> {
     use sqlparser::ast::{
-        visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName,
-        ObjectNamePart,
+        visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName, ObjectNamePart,
     };
     use sqlparser::dialect::PostgreSqlDialect;
     use sqlparser::parser::Parser;
@@ -735,16 +776,22 @@ pub fn rewrite_regprocedure_cast(sql: &str) -> Result<String> {
 
     fn is_regprocedure(obj: &ObjectName) -> bool {
         match obj.0.as_slice() {
-            [ObjectNamePart::Identifier(id)] if id.value.eq_ignore_ascii_case("regprocedure") => true,
+            [ObjectNamePart::Identifier(id)] if id.value.eq_ignore_ascii_case("regprocedure") => {
+                true
+            }
             [ObjectNamePart::Identifier(schema), ObjectNamePart::Identifier(id)]
-                if schema.value.eq_ignore_ascii_case("pg_catalog") && id.value.eq_ignore_ascii_case("regprocedure") => true,
+                if schema.value.eq_ignore_ascii_case("pg_catalog")
+                    && id.value.eq_ignore_ascii_case("regprocedure") =>
+            {
+                true
+            }
             _ => false,
         }
     }
 
     let dialect = PostgreSqlDialect {};
-    let mut stmts = Parser::parse_sql(&dialect, sql)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut stmts =
+        Parser::parse_sql(&dialect, sql).map_err(|e| DataFusionError::External(Box::new(e)))?;
 
     let _ = visit_statements_mut(&mut stmts, |stmt| {
         visit_expressions_mut(stmt, |e| {
@@ -770,8 +817,7 @@ pub fn rewrite_regprocedure_cast(sql: &str) -> Result<String> {
 /// Replace casts to regproc with TEXT.
 pub fn rewrite_regproc_cast(sql: &str) -> Result<String> {
     use sqlparser::ast::{
-        visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName,
-        ObjectNamePart,
+        visit_expressions_mut, visit_statements_mut, DataType, Expr, ObjectName, ObjectNamePart,
     };
     use sqlparser::dialect::PostgreSqlDialect;
     use sqlparser::parser::Parser;
@@ -781,14 +827,18 @@ pub fn rewrite_regproc_cast(sql: &str) -> Result<String> {
         match obj.0.as_slice() {
             [ObjectNamePart::Identifier(id)] if id.value.eq_ignore_ascii_case("regproc") => true,
             [ObjectNamePart::Identifier(schema), ObjectNamePart::Identifier(id)]
-                if schema.value.eq_ignore_ascii_case("pg_catalog") && id.value.eq_ignore_ascii_case("regproc") => true,
+                if schema.value.eq_ignore_ascii_case("pg_catalog")
+                    && id.value.eq_ignore_ascii_case("regproc") =>
+            {
+                true
+            }
             _ => false,
         }
     }
 
     let dialect = PostgreSqlDialect {};
-    let mut stmts = Parser::parse_sql(&dialect, sql)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut stmts =
+        Parser::parse_sql(&dialect, sql).map_err(|e| DataFusionError::External(Box::new(e)))?;
 
     let _ = visit_statements_mut(&mut stmts, |stmt| {
         let _ = visit_expressions_mut(stmt, |e| {
@@ -817,17 +867,16 @@ pub fn rewrite_regproc_cast(sql: &str) -> Result<String> {
 /// without failing the query.
 pub fn rewrite_available_updates(sql: &str) -> Result<String> {
     use sqlparser::ast::{
-        visit_expressions_mut, visit_statements_mut, Expr, Function, FunctionArguments,
-        Value, ValueWithSpan,
-        SetExpr, SelectItem, TableFactor, BinaryOperator,
+        visit_expressions_mut, visit_statements_mut, BinaryOperator, Expr, Function,
+        FunctionArguments, SelectItem, SetExpr, TableFactor, Value, ValueWithSpan,
     };
     use sqlparser::dialect::PostgreSqlDialect;
     use sqlparser::parser::Parser;
     use std::ops::ControlFlow;
 
     let dialect = PostgreSqlDialect {};
-    let mut statements = Parser::parse_sql(&dialect, sql)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut statements =
+        Parser::parse_sql(&dialect, sql).map_err(|e| DataFusionError::External(Box::new(e)))?;
 
     let mut rewritten = false;
 
@@ -844,24 +893,30 @@ pub fn rewrite_available_updates(sql: &str) -> Result<String> {
                 if base == "array" {
                     if let FunctionArguments::Subquery(subq) = args {
                         if let SetExpr::Select(sel) = subq.body.as_ref() {
-                            let from_ok = sel.from.len() == 1 && matches!(
-                                sel.from[0].relation,
-                                TableFactor::UNNEST { .. }
-                            );
-                            let proj_ok = sel.projection.len() == 1 && matches!(
-                                sel.projection[0],
-                                SelectItem::UnnamedExpr(Expr::Identifier(ref id)) if id.value.eq_ignore_ascii_case("unnest")
-                            );
+                            let from_ok = sel.from.len() == 1
+                                && matches!(sel.from[0].relation, TableFactor::UNNEST { .. });
+                            let proj_ok = sel.projection.len() == 1
+                                && matches!(
+                                    sel.projection[0],
+                                    SelectItem::UnnamedExpr(Expr::Identifier(ref id)) if id.value.eq_ignore_ascii_case("unnest")
+                                );
                             let cond_ok = match &sel.selection {
-                                Some(Expr::BinaryOp { left, op: BinaryOperator::Gt, right }) => {
-                                    matches!(left.as_ref(), Expr::Identifier(ref id) if id.value.eq_ignore_ascii_case("unnest")) &&
-                                    matches!(right.as_ref(), Expr::Identifier(ref id) if id.value.eq_ignore_ascii_case("extversion"))
+                                Some(Expr::BinaryOp {
+                                    left,
+                                    op: BinaryOperator::Gt,
+                                    right,
+                                }) => {
+                                    matches!(left.as_ref(), Expr::Identifier(ref id) if id.value.eq_ignore_ascii_case("unnest"))
+                                        && matches!(right.as_ref(), Expr::Identifier(ref id) if id.value.eq_ignore_ascii_case("extversion"))
                                 }
                                 _ => false,
                             };
 
                             if from_ok && proj_ok && cond_ok {
-                                *expr = Expr::Value(ValueWithSpan { value: Value::Null, span: Span::empty() });
+                                *expr = Expr::Value(ValueWithSpan {
+                                    value: Value::Null,
+                                    span: Span::empty(),
+                                });
                                 rewritten = true;
                                 return ControlFlow::<DataFusionError, ()>::Continue(());
                             }
@@ -913,8 +968,8 @@ pub fn strip_default_collate(sql: &str) -> Result<String> {
     }
 
     let dialect = PostgreSqlDialect {};
-    let mut statements = Parser::parse_sql(&dialect, sql)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut statements =
+        Parser::parse_sql(&dialect, sql).map_err(|e| DataFusionError::External(Box::new(e)))?;
 
     let _ = visit_statements_mut(&mut statements, |stmt| {
         visit_expressions_mut(stmt, |e| {
@@ -942,14 +997,18 @@ pub fn rewrite_time_zone_utc(sql: &str) -> Result<String> {
     use std::ops::ControlFlow;
 
     let dialect = PostgreSqlDialect {};
-    let mut stmts = Parser::parse_sql(&dialect, sql)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut stmts =
+        Parser::parse_sql(&dialect, sql).map_err(|e| DataFusionError::External(Box::new(e)))?;
     let mut rewritten = false;
 
     let _ = visit_statements_mut(&mut stmts, |stmt| {
         visit_expressions_mut(stmt, |e| {
             if let Expr::AtTimeZone { time_zone, .. } = e {
-                if let Expr::Value(ValueWithSpan { value: Value::SingleQuotedString(ref mut s), .. }) = time_zone.as_mut() {
+                if let Expr::Value(ValueWithSpan {
+                    value: Value::SingleQuotedString(ref mut s),
+                    ..
+                }) = time_zone.as_mut()
+                {
                     if s.eq_ignore_ascii_case("utc") && s != "UTC" {
                         *s = "UTC".into();
                         rewritten = true;
@@ -962,7 +1021,11 @@ pub fn rewrite_time_zone_utc(sql: &str) -> Result<String> {
     });
 
     if rewritten {
-        Ok(stmts.into_iter().map(|s| s.to_string()).collect::<Vec<_>>().join("; "))
+        Ok(stmts
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>()
+            .join("; "))
     } else {
         Ok(sql.to_owned())
     }
@@ -977,159 +1040,166 @@ pub fn rewrite_time_zone_utc(sql: &str) -> Result<String> {
 /// • **if nothing matches we just pass the SQL back untouched**
 pub fn rewrite_array_subquery(sql: &str) -> Result<String> {
     use sqlparser::ast::{
-        visit_expressions_mut, visit_statements_mut, Expr, Function, FunctionArg,
-        FunctionArgExpr, FunctionArguments, FunctionArgumentList, Ident, ObjectName,
-        ObjectNamePart,
+        visit_expressions_mut, visit_statements_mut, Expr, Function, FunctionArg, FunctionArgExpr,
+        FunctionArgumentList, FunctionArguments, Ident, ObjectName, ObjectNamePart,
     };
     use sqlparser::dialect::PostgreSqlDialect;
     use sqlparser::parser::Parser;
     use std::ops::ControlFlow;
 
     let dialect = PostgreSqlDialect {};
-    let mut stmts = Parser::parse_sql(&dialect, sql)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut stmts =
+        Parser::parse_sql(&dialect, sql).map_err(|e| DataFusionError::External(Box::new(e)))?;
 
     let mut rewritten_any = false;
 
     /* --------------------------------------------------------- */
-    let flow: ControlFlow<DataFusionError, ()> =
-        visit_statements_mut(&mut stmts, |stmt| {
-            let inner = visit_expressions_mut(stmt, |expr| {
-                /* ── 1️⃣  bail out on ARRAY[...] literals ─────────────── */
-                if let Expr::Array(_) = expr {
-                    return ControlFlow::Continue(());
-                }
+    let flow: ControlFlow<DataFusionError, ()> = visit_statements_mut(&mut stmts, |stmt| {
+        let inner = visit_expressions_mut(stmt, |expr| {
+            /* ── 1️⃣  bail out on ARRAY[...] literals ─────────────── */
+            if let Expr::Array(_) = expr {
+                return ControlFlow::Continue(());
+            }
 
-                /* ── 2️⃣  handle ARRAY( … ) rewrites ─────────────────── */
-                if let Expr::Function(func) = expr {
-                    let base_name = func
-                        .name
-                        .0
-                        .last()
-                        .and_then(|p| p.as_ident())
-                        .map(|id| id.value.to_lowercase())
-                        .unwrap_or_default();
+            /* ── 2️⃣  handle ARRAY( … ) rewrites ─────────────────── */
+            if let Expr::Function(func) = expr {
+                let base_name = func
+                    .name
+                    .0
+                    .last()
+                    .and_then(|p| p.as_ident())
+                    .map(|id| id.value.to_lowercase())
+                    .unwrap_or_default();
 
-                    if base_name == "array" {
-                        /* extract exactly one argument */
-                        let arg_expr: Expr = match &func.args {
-                            /* list form */
-                            FunctionArguments::List(FunctionArgumentList { args, .. }) => {
-                                if args.len() != 1 {
-                                    return ControlFlow::Break(DataFusionError::Plan(
-                                        "ARRAY() must have exactly one argument".into(),
-                                    ));
-                                }
-                                match &args[0] {
-                                    FunctionArg::Unnamed(FunctionArgExpr::Expr(e)) => (*e).clone(),
-                                    _ => {
-                                        return ControlFlow::Break(DataFusionError::Plan(
-                                            "ARRAY() argument must be an expression".into(),
-                                        ))
-                                    }
-                                }
-                            }
-                            /* sub-query form */
-                            FunctionArguments::Subquery(q) => {
-                                Expr::Subquery(Box::new((**q).clone()))
-                            }
-                            _ => {
+                if base_name == "array" {
+                    /* extract exactly one argument */
+                    let arg_expr: Expr = match &func.args {
+                        /* list form */
+                        FunctionArguments::List(FunctionArgumentList { args, .. }) => {
+                            if args.len() != 1 {
                                 return ControlFlow::Break(DataFusionError::Plan(
-                                    "ARRAY() with unsupported argument form".into(),
-                                ))
+                                    "ARRAY() must have exactly one argument".into(),
+                                ));
                             }
-                        };
-
-                        // -----------------------------------------------------------------
-                        // Special case: ARRAY(SELECT unnest FROM UNNEST(col))
-                        // -------------------------------------------------
-                        // PostgreSQL allows this construct to effectively
-                        // return the original array. The generic rewrite
-                        // below would turn it into:
-                        //      pg_catalog.pg_get_array((SELECT unnest FROM
-                        //          UNNEST(col)))
-                        // which later fails when the scalar sub-query is
-                        // converted into a CTE because it references the
-                        // outer table.  Detect this exact shape here and
-                        // simply replace the whole expression with `col`.
-
-                        if let Expr::Subquery(subq) = &arg_expr {
-                            if let SetExpr::Select(inner_sel) = subq.body.as_ref() {
-                                let from_ok = inner_sel.from.len() == 1 && matches!(
-                                    inner_sel.from[0].relation,
-                                    TableFactor::UNNEST { .. }
-                                );
-                                let proj_unnest = inner_sel.projection.len() == 1 &&
-                                    matches!(
-                                        inner_sel.projection[0],
-                                        SelectItem::UnnamedExpr(Expr::Identifier(ref id))
-                                        if id.value.to_lowercase() == "unnest"
-                                    );
-                                let proj_null = inner_sel.projection.len() == 1 &&
-                                    match &inner_sel.projection[0] {
-                                        SelectItem::UnnamedExpr(Expr::Value(ValueWithSpan { value: Value::Null, .. })) => true,
-                                        SelectItem::UnnamedExpr(Expr::Cast { expr, .. }) => matches!(**expr, Expr::Value(ValueWithSpan { value: Value::Null, .. })),
-                                        _ => false,
-                                    };
-                                if from_ok && proj_unnest && inner_sel.selection.is_none() {
-                                    if let TableFactor::UNNEST { ref array_exprs, .. } = inner_sel.from[0].relation {
-                                        if array_exprs.len() == 1 {
-                                            *expr = array_exprs[0].clone();
-                                            rewritten_any = true;
-                                            return ControlFlow::Continue(());
-                                        }
-                                    }
-                                } else if from_ok && proj_null && inner_sel.selection.is_none() {
-                                    *expr = Expr::Cast {
-                                        kind: sqlparser::ast::CastKind::Cast,
-                                        expr: Box::new(Expr::Value(ValueWithSpan { value: Value::Null, span: Span::empty() })),
-                                        data_type: DataType::Text,
-                                        format: None,
-                                    };
-                                    rewritten_any = true;
-                                    return ControlFlow::Continue(());
+                            match &args[0] {
+                                FunctionArg::Unnamed(FunctionArgExpr::Expr(e)) => (*e).clone(),
+                                _ => {
+                                    return ControlFlow::Break(DataFusionError::Plan(
+                                        "ARRAY() argument must be an expression".into(),
+                                    ))
                                 }
                             }
                         }
+                        /* sub-query form */
+                        FunctionArguments::Subquery(q) => Expr::Subquery(Box::new((**q).clone())),
+                        _ => {
+                            return ControlFlow::Break(DataFusionError::Plan(
+                                "ARRAY() with unsupported argument form".into(),
+                            ))
+                        }
+                    };
 
-                        /* add parentheses only when necessary */
-                        let wrapped = match &arg_expr {
-                            Expr::Subquery(_) | Expr::Nested(_) => arg_expr.clone(),
-                            _                                    => Expr::Nested(Box::new(arg_expr.clone())),
-                        };
+                    // -----------------------------------------------------------------
+                    // Special case: ARRAY(SELECT unnest FROM UNNEST(col))
+                    // -------------------------------------------------
+                    // PostgreSQL allows this construct to effectively
+                    // return the original array. The generic rewrite
+                    // below would turn it into:
+                    //      pg_catalog.pg_get_array((SELECT unnest FROM
+                    //          UNNEST(col)))
+                    // which later fails when the scalar sub-query is
+                    // converted into a CTE because it references the
+                    // outer table.  Detect this exact shape here and
+                    // simply replace the whole expression with `col`.
 
-                        /* build pg_catalog.pg_get_array( wrapped ) */
-                        *expr = Expr::Function(Function {
-                            name: ObjectName(vec![
-                                ObjectNamePart::Identifier(Ident::new("pg_catalog")),
-                                ObjectNamePart::Identifier(Ident::new("pg_get_array")),
-                            ]),
-                            args: FunctionArguments::List(FunctionArgumentList {
-                                duplicate_treatment: None,
-                                clauses: vec![],
-                                args: vec![FunctionArg::Unnamed(
-                                    FunctionArgExpr::Expr(wrapped),
-                                )],
-                            }),
-                            over: None,
-                            filter: None,
-                            within_group: vec![],
-                            null_treatment: None,
-                            parameters: FunctionArguments::None,
-                            uses_odbc_syntax: false,
-                        });
-
-                        rewritten_any = true;
+                    if let Expr::Subquery(subq) = &arg_expr {
+                        if let SetExpr::Select(inner_sel) = subq.body.as_ref() {
+                            let from_ok = inner_sel.from.len() == 1
+                                && matches!(inner_sel.from[0].relation, TableFactor::UNNEST { .. });
+                            let proj_unnest = inner_sel.projection.len() == 1
+                                && matches!(
+                                    inner_sel.projection[0],
+                                    SelectItem::UnnamedExpr(Expr::Identifier(ref id))
+                                    if id.value.to_lowercase() == "unnest"
+                                );
+                            let proj_null = inner_sel.projection.len() == 1
+                                && match &inner_sel.projection[0] {
+                                    SelectItem::UnnamedExpr(Expr::Value(ValueWithSpan {
+                                        value: Value::Null,
+                                        ..
+                                    })) => true,
+                                    SelectItem::UnnamedExpr(Expr::Cast { expr, .. }) => matches!(
+                                        **expr,
+                                        Expr::Value(ValueWithSpan {
+                                            value: Value::Null,
+                                            ..
+                                        })
+                                    ),
+                                    _ => false,
+                                };
+                            if from_ok && proj_unnest && inner_sel.selection.is_none() {
+                                if let TableFactor::UNNEST {
+                                    ref array_exprs, ..
+                                } = inner_sel.from[0].relation
+                                {
+                                    if array_exprs.len() == 1 {
+                                        *expr = array_exprs[0].clone();
+                                        rewritten_any = true;
+                                        return ControlFlow::Continue(());
+                                    }
+                                }
+                            } else if from_ok && proj_null && inner_sel.selection.is_none() {
+                                *expr = Expr::Cast {
+                                    kind: sqlparser::ast::CastKind::Cast,
+                                    expr: Box::new(Expr::Value(ValueWithSpan {
+                                        value: Value::Null,
+                                        span: Span::empty(),
+                                    })),
+                                    data_type: DataType::Text,
+                                    format: None,
+                                };
+                                rewritten_any = true;
+                                return ControlFlow::Continue(());
+                            }
+                        }
                     }
-                }
-                ControlFlow::Continue(())
-            });
 
-            match inner {
-                ControlFlow::Break(e)     => ControlFlow::Break(e),
-                ControlFlow::Continue(()) => ControlFlow::Continue(()),
+                    /* add parentheses only when necessary */
+                    let wrapped = match &arg_expr {
+                        Expr::Subquery(_) | Expr::Nested(_) => arg_expr.clone(),
+                        _ => Expr::Nested(Box::new(arg_expr.clone())),
+                    };
+
+                    /* build pg_catalog.pg_get_array( wrapped ) */
+                    *expr = Expr::Function(Function {
+                        name: ObjectName(vec![
+                            ObjectNamePart::Identifier(Ident::new("pg_catalog")),
+                            ObjectNamePart::Identifier(Ident::new("pg_get_array")),
+                        ]),
+                        args: FunctionArguments::List(FunctionArgumentList {
+                            duplicate_treatment: None,
+                            clauses: vec![],
+                            args: vec![FunctionArg::Unnamed(FunctionArgExpr::Expr(wrapped))],
+                        }),
+                        over: None,
+                        filter: None,
+                        within_group: vec![],
+                        null_treatment: None,
+                        parameters: FunctionArguments::None,
+                        uses_odbc_syntax: false,
+                    });
+
+                    rewritten_any = true;
+                }
             }
+            ControlFlow::Continue(())
         });
+
+        match inner {
+            ControlFlow::Break(e) => ControlFlow::Break(e),
+            ControlFlow::Continue(()) => ControlFlow::Continue(()),
+        }
+    });
 
     /* propagate any error triggered above */
     if let ControlFlow::Break(err) = flow {
@@ -1154,9 +1224,8 @@ pub fn rewrite_array_subquery(sql: &str) -> Result<String> {
 /// text-encoded `oidvector` columns as arrays.
 pub fn rewrite_oidvector_unnest(sql: &str) -> Result<String> {
     use sqlparser::ast::{
-        visit_expressions_mut, visit_statements_mut, Expr, Function,
-        FunctionArg, FunctionArgExpr, FunctionArguments, FunctionArgumentList,
-        Ident, ObjectNamePart,
+        visit_expressions_mut, visit_statements_mut, Expr, Function, FunctionArg, FunctionArgExpr,
+        FunctionArgumentList, FunctionArguments, Ident, ObjectNamePart,
     };
     use sqlparser::dialect::PostgreSqlDialect;
     use sqlparser::parser::Parser;
@@ -1170,17 +1239,16 @@ pub fn rewrite_oidvector_unnest(sql: &str) -> Result<String> {
     fn needs_rewrite(expr: &Expr) -> bool {
         match expr {
             Expr::Identifier(id) => is_target_ident(id),
-            Expr::CompoundIdentifier(parts) => parts
-                .last()
-                .map(|id| is_target_ident(id))
-                .unwrap_or(false),
+            Expr::CompoundIdentifier(parts) => {
+                parts.last().map(|id| is_target_ident(id)).unwrap_or(false)
+            }
             _ => false,
         }
     }
 
     let dialect = PostgreSqlDialect {};
-    let mut stmts = Parser::parse_sql(&dialect, sql)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut stmts =
+        Parser::parse_sql(&dialect, sql).map_err(|e| DataFusionError::External(Box::new(e)))?;
 
     let mut rewritten = false;
 
@@ -1196,16 +1264,22 @@ pub fn rewrite_oidvector_unnest(sql: &str) -> Result<String> {
 
                 if base == "unnest" {
                     if let FunctionArguments::List(FunctionArgumentList { args, .. }) = args {
-                        if let Some(FunctionArg::Unnamed(FunctionArgExpr::Expr(inner))) = args.get_mut(0) {
+                        if let Some(FunctionArg::Unnamed(FunctionArgExpr::Expr(inner))) =
+                            args.get_mut(0)
+                        {
                             if needs_rewrite(inner) {
                                 let wrapped = Expr::Function(Function {
                                     name: sqlparser::ast::ObjectName(vec![
-                                        ObjectNamePart::Identifier(Ident::new("oidvector_to_array")),
+                                        ObjectNamePart::Identifier(Ident::new(
+                                            "oidvector_to_array",
+                                        )),
                                     ]),
                                     args: FunctionArguments::List(FunctionArgumentList {
                                         duplicate_treatment: None,
                                         clauses: vec![],
-                                        args: vec![FunctionArg::Unnamed(FunctionArgExpr::Expr(inner.clone()))],
+                                        args: vec![FunctionArg::Unnamed(FunctionArgExpr::Expr(
+                                            inner.clone(),
+                                        ))],
                                     }),
                                     over: None,
                                     filter: None,
@@ -1244,32 +1318,31 @@ pub fn rewrite_oidvector_unnest(sql: &str) -> Result<String> {
 /// `oidvector_to_array` so comparisons can be planned.
 pub fn rewrite_oidvector_any(sql: &str) -> Result<String> {
     use sqlparser::ast::{
-        visit_expressions_mut, visit_statements_mut, Expr, Function,
-        FunctionArg, FunctionArgExpr, FunctionArguments, FunctionArgumentList,
-        Ident, ObjectNamePart,
+        visit_expressions_mut, visit_statements_mut, Expr, Function, FunctionArg, FunctionArgExpr,
+        FunctionArgumentList, FunctionArguments, Ident, ObjectNamePart,
     };
     use sqlparser::dialect::PostgreSqlDialect;
     use sqlparser::parser::Parser;
     use std::ops::ControlFlow;
 
     fn is_target_ident(id: &Ident) -> bool {
-        matches!(id.value.to_lowercase().as_str(), "indclass" | "indcollation")
+        matches!(
+            id.value.to_lowercase().as_str(),
+            "indclass" | "indcollation"
+        )
     }
 
     fn needs_rewrite(expr: &Expr) -> bool {
         match expr {
             Expr::Identifier(id) => is_target_ident(id),
-            Expr::CompoundIdentifier(parts) => parts
-                .last()
-                .map(is_target_ident)
-                .unwrap_or(false),
+            Expr::CompoundIdentifier(parts) => parts.last().map(is_target_ident).unwrap_or(false),
             _ => false,
         }
     }
 
     let dialect = PostgreSqlDialect {};
-    let mut stmts = Parser::parse_sql(&dialect, sql)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut stmts =
+        Parser::parse_sql(&dialect, sql).map_err(|e| DataFusionError::External(Box::new(e)))?;
 
     let mut rewritten = false;
 
@@ -1279,9 +1352,9 @@ pub fn rewrite_oidvector_any(sql: &str) -> Result<String> {
                 if needs_rewrite(right) {
                     let inner = right.as_ref().clone();
                     let wrapped = Expr::Function(Function {
-                        name: sqlparser::ast::ObjectName(vec![
-                            ObjectNamePart::Identifier(Ident::new("oidvector_to_array")),
-                        ]),
+                        name: sqlparser::ast::ObjectName(vec![ObjectNamePart::Identifier(
+                            Ident::new("oidvector_to_array"),
+                        )]),
                         args: FunctionArguments::List(FunctionArgumentList {
                             duplicate_treatment: None,
                             clauses: vec![],
@@ -1314,7 +1387,6 @@ pub fn rewrite_oidvector_any(sql: &str) -> Result<String> {
     }
 }
 
-
 /// Rewrite a Postgres array literal in curly-brace notation
 /// (`'{1,2,3}'`, `'{"a","b"}'`, …) into an `Expr::Array`, which
 /// `sqlparser` renders as `ARRAY[...]`.
@@ -1323,34 +1395,31 @@ pub fn rewrite_oidvector_any(sql: &str) -> Result<String> {
 ///  * if *nothing* matches we pass SQL back unchanged
 ///  * malformed literals raise `DataFusionError::Plan`
 pub fn rewrite_brace_array_literal(sql: &str) -> Result<String> {
-    use sqlparser::ast::{
-        visit_expressions_mut, visit_statements_mut, Expr, Value, ValueWithSpan,
-    };
+    use sqlparser::ast::{visit_expressions_mut, visit_statements_mut, Expr, Value, ValueWithSpan};
     use sqlparser::dialect::PostgreSqlDialect;
     use sqlparser::parser::Parser;
     use std::ops::ControlFlow;
 
     let dialect = PostgreSqlDialect {};
-    let mut stmts = Parser::parse_sql(&dialect, sql)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut stmts =
+        Parser::parse_sql(&dialect, sql).map_err(|e| DataFusionError::External(Box::new(e)))?;
 
     let mut rewritten_any = false;
 
-    let flow: ControlFlow<DataFusionError, ()> =
-        visit_statements_mut(&mut stmts, |stmt| {
-            let inner = visit_expressions_mut(stmt, |expr| {
-                if let Expr::Value(ValueWithSpan {
-                    value: Value::SingleQuotedString(s),
-                    ..
-                }) = expr
-                {
-                    if s.starts_with('{') && s.ends_with('}') {
-                        let inside = &s[1..s.len() - 1]; // strip the braces
+    let flow: ControlFlow<DataFusionError, ()> = visit_statements_mut(&mut stmts, |stmt| {
+        let inner = visit_expressions_mut(stmt, |expr| {
+            if let Expr::Value(ValueWithSpan {
+                value: Value::SingleQuotedString(s),
+                ..
+            }) = expr
+            {
+                if s.starts_with('{') && s.ends_with('}') {
+                    let inside = &s[1..s.len() - 1]; // strip the braces
 
-                        // split respecting the simple {a,b,c} grammar
-                        // (no escape handling – good enough for catalogue OIDs
-                        //  like '{0}' which is what we need right now)
-                        let items: Vec<Expr> = inside
+                    // split respecting the simple {a,b,c} grammar
+                    // (no escape handling – good enough for catalogue OIDs
+                    //  like '{0}' which is what we need right now)
+                    let items: Vec<Expr> = inside
                         .split(',')
                         .map(|t| {
                             Expr::Value(ValueWithSpan {
@@ -1361,24 +1430,24 @@ pub fn rewrite_brace_array_literal(sql: &str) -> Result<String> {
                             })
                         })
                         .collect();
-                    
-                        // build ARRAY[...]
-                        *expr = Expr::Array(Array {
-                            elem: items,
-                            named: false,          // <- `false` for the normal ARRAY[...] form
-                        });
 
-                        rewritten_any = true;
-                    }
+                    // build ARRAY[...]
+                    *expr = Expr::Array(Array {
+                        elem: items,
+                        named: false, // <- `false` for the normal ARRAY[...] form
+                    });
+
+                    rewritten_any = true;
                 }
-                ControlFlow::Continue(())
-            });
-
-            match inner {
-                ControlFlow::Break(e) => ControlFlow::Break(e),
-                ControlFlow::Continue(()) => ControlFlow::Continue(()),
             }
+            ControlFlow::Continue(())
         });
+
+        match inner {
+            ControlFlow::Break(e) => ControlFlow::Break(e),
+            ControlFlow::Continue(()) => ControlFlow::Continue(()),
+        }
+    });
 
     if let ControlFlow::Break(err) = flow {
         return Err(err);
@@ -1401,16 +1470,14 @@ pub fn rewrite_brace_array_literal(sql: &str) -> Result<String> {
 /// into a conjunction of element comparisons. Only equality is handled;
 /// all other expressions are left untouched.
 pub fn rewrite_tuple_equality(sql: &str) -> Result<String> {
-    use sqlparser::ast::{
-        visit_expressions_mut, visit_statements_mut, BinaryOperator, Expr,
-    };
+    use sqlparser::ast::{visit_expressions_mut, visit_statements_mut, BinaryOperator, Expr};
     use sqlparser::dialect::PostgreSqlDialect;
     use sqlparser::parser::Parser;
     use std::ops::ControlFlow;
 
     let dialect = PostgreSqlDialect {};
-    let mut stmts = Parser::parse_sql(&dialect, sql)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut stmts =
+        Parser::parse_sql(&dialect, sql).map_err(|e| DataFusionError::External(Box::new(e)))?;
 
     let _ = visit_statements_mut(&mut stmts, |stmt| {
         visit_expressions_mut(stmt, |expr| {
@@ -1470,8 +1537,7 @@ pub fn rewrite_tuple_equality(sql: &str) -> Result<String> {
 /// given aliases so the planner can resolve them unambiguously.
 pub fn alias_subquery_tables(sql: &str) -> Result<String> {
     use sqlparser::ast::{
-        visit_expressions_mut, visit_statements_mut, Expr, Query, TableAlias,
-        TableFactor, Ident,
+        visit_expressions_mut, visit_statements_mut, Expr, Ident, Query, TableAlias, TableFactor,
     };
     use sqlparser::dialect::PostgreSqlDialect;
     use sqlparser::parser::Parser;
@@ -1493,7 +1559,8 @@ pub fn alias_subquery_tables(sql: &str) -> Result<String> {
     fn alias_table_factor(tf: &mut TableFactor, counter: &mut usize) {
         if let TableFactor::Table { name, alias, .. } = tf {
             if name.0.len() == 1 {
-                name.0.insert(0, ObjectNamePart::Identifier(Ident::new("pg_catalog")));
+                name.0
+                    .insert(0, ObjectNamePart::Identifier(Ident::new("pg_catalog")));
             }
             if alias.is_none() {
                 *alias = Some(TableAlias {
@@ -1506,8 +1573,8 @@ pub fn alias_subquery_tables(sql: &str) -> Result<String> {
     }
 
     let dialect = PostgreSqlDialect {};
-    let mut stmts = Parser::parse_sql(&dialect, sql)
-        .map_err(|e| DataFusionError::External(Box::new(e)))?;
+    let mut stmts =
+        Parser::parse_sql(&dialect, sql).map_err(|e| DataFusionError::External(Box::new(e)))?;
 
     let mut counter = 0usize;
     let _ = visit_statements_mut(&mut stmts, |stmt| {
@@ -1527,8 +1594,6 @@ pub fn alias_subquery_tables(sql: &str) -> Result<String> {
         .join("; "))
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1537,8 +1602,8 @@ mod tests {
     #[test]
     fn test_rewrite_regtype_cast() -> Result<(), Box<dyn std::error::Error>> {
         let cases = vec![
-            ("SELECT x::regtype",                  "SELECT x::TEXT"),
-            ("SELECT x::pg_catalog.regtype",       "SELECT x::TEXT"),
+            ("SELECT x::regtype", "SELECT x::TEXT"),
+            ("SELECT x::pg_catalog.regtype", "SELECT x::TEXT"),
             ("SELECT y::pg_catalog.regtype::text", "SELECT y::TEXT::TEXT"),
         ];
         for (input, expected) in cases {
@@ -1551,20 +1616,17 @@ mod tests {
     fn test_rewrite_pg_custom_types() -> Result<(), Box<dyn std::error::Error>> {
         let cases = vec![
             // literal keeps ::
-            ("SELECT 'a'::pg_catalog.text",
-             "SELECT 'a'::TEXT"),
-    
+            ("SELECT 'a'::pg_catalog.text", "SELECT 'a'::TEXT"),
             // simple identifier keeps ::
-            ("SELECT x::pg_catalog.regtype",
-             "SELECT x::TEXT"),
-            ("SELECT x::pg_catalog.regclass",
-             "SELECT x::TEXT"),
-             
+            ("SELECT x::pg_catalog.regtype", "SELECT x::TEXT"),
+            ("SELECT x::pg_catalog.regclass", "SELECT x::TEXT"),
             // an explicit CAST stays CAST
-            ("SELECT CAST(y AS pg_catalog.regtype)",
-             "SELECT CAST(y AS TEXT)"),
+            (
+                "SELECT CAST(y AS pg_catalog.regtype)",
+                "SELECT CAST(y AS TEXT)",
+            ),
         ];
-    
+
         for (input, expected) in cases {
             assert_eq!(
                 rewrite_schema_qualified_custom_types(input).unwrap(),
@@ -1575,7 +1637,6 @@ mod tests {
         }
         Ok(())
     }
-
 
     #[test]
     fn test_regclass_with_oid() -> Result<(), Box<dyn std::error::Error>> {
@@ -1604,10 +1665,15 @@ mod tests {
     #[test]
     fn test_rewrite_schema_qualified_text() -> Result<(), Box<dyn std::error::Error>> {
         let cases = vec![
-            ("SELECT 'a'::pg_catalog.text",              "SELECT 'a'::TEXT"),
-            ("SELECT CAST('x' AS pg_catalog.text)",      "SELECT CAST('x' AS TEXT)"),
-            ("WITH q AS (SELECT 'b'::pg_catalog.text) SELECT * FROM q",
-            "WITH q AS (SELECT 'b'::TEXT) SELECT * FROM q"),
+            ("SELECT 'a'::pg_catalog.text", "SELECT 'a'::TEXT"),
+            (
+                "SELECT CAST('x' AS pg_catalog.text)",
+                "SELECT CAST('x' AS TEXT)",
+            ),
+            (
+                "WITH q AS (SELECT 'b'::pg_catalog.text) SELECT * FROM q",
+                "WITH q AS (SELECT 'b'::TEXT) SELECT * FROM q",
+            ),
         ];
         for (input, expected) in cases {
             assert_eq!(rewrite_schema_qualified_text(input).unwrap(), expected);
@@ -1618,10 +1684,7 @@ mod tests {
     #[test]
     fn test_rewrite_pg_custom_operator() -> Result<(), Box<dyn std::error::Error>> {
         let cases = vec![
-            (
-                "SELECT 'b' OPERATOR(pg_catalog.~) 'a'",
-                "SELECT 'b' ~ 'a'",
-            ),
+            ("SELECT 'b' OPERATOR(pg_catalog.~) 'a'", "SELECT 'b' ~ 'a'"),
             (
                 "SELECT c.relname OPERATOR(pg_catalog.~) '^(t)$' FROM pg_class c",
                 "SELECT c.relname ~ '^(t)$' FROM pg_class AS c",
@@ -1633,7 +1696,6 @@ mod tests {
         }
         Ok(())
     }
-
 
     #[test]
     fn test_strip_default_collate() -> Result<(), Box<dyn std::error::Error>> {
@@ -1715,9 +1777,7 @@ mod tests {
         );
 
         assert_eq!(
-            replace_set_command_with_namespace(
-                "SET LOCAL work_mem TO '4MB'"
-            ).unwrap(),
+            replace_set_command_with_namespace("SET LOCAL work_mem TO '4MB'").unwrap(),
             "SET LOCAL pg_catalog.work_mem = '4MB'"
         );
         Ok(())
@@ -1726,8 +1786,9 @@ mod tests {
     #[test]
     fn test_rewrite_array_subquery() -> Result<(), Box<dyn std::error::Error>> {
         /* basic happy-path */
-        let in_sql  = "SELECT array(SELECT rolname FROM pg_catalog.pg_roles ORDER BY 1)";
-        let expect  = "SELECT pg_catalog.pg_get_array((SELECT rolname FROM pg_catalog.pg_roles ORDER BY 1))";
+        let in_sql = "SELECT array(SELECT rolname FROM pg_catalog.pg_roles ORDER BY 1)";
+        let expect =
+            "SELECT pg_catalog.pg_get_array((SELECT rolname FROM pg_catalog.pg_roles ORDER BY 1))";
         let out_sql = rewrite_array_subquery(in_sql).unwrap();
         log::debug!("test_rewrite_array_subquery {}", out_sql);
         assert_eq!(out_sql, expect);
@@ -1736,11 +1797,10 @@ mod tests {
         let out_sql = rewrite_array_subquery(in_sql).unwrap();
         assert_eq!(in_sql, out_sql);
 
-    
         /* ARRAY with more than one arg – rejected */
         let bad_sql = "SELECT array(x, y)";
         assert!(rewrite_array_subquery(bad_sql).is_err());
-    
+
         /* array literal is *not* touched */
         let lit_sql = "SELECT ARRAY[1,2,3]";
         let out_sql = rewrite_array_subquery(lit_sql).unwrap();
@@ -1751,12 +1811,12 @@ mod tests {
 
     #[test]
     fn test_rewrite_brace_array_literal() -> Result<(), Box<dyn std::error::Error>> {
-        let in_sql  = "SELECT pol.polroles = '{0}' FROM pg_catalog.pg_policy pol";
-        let expect  = "SELECT pol.polroles = ['0'] FROM pg_catalog.pg_policy AS pol";
+        let in_sql = "SELECT pol.polroles = '{0}' FROM pg_catalog.pg_policy pol";
+        let expect = "SELECT pol.polroles = ['0'] FROM pg_catalog.pg_policy AS pol";
         assert_eq!(rewrite_brace_array_literal(in_sql).unwrap(), expect);
 
         // nothing to do ➜ echoes input
-        let plain   = "SELECT 1";
+        let plain = "SELECT 1";
         assert_eq!(rewrite_brace_array_literal(plain).unwrap(), plain);
 
         Ok(())
@@ -1827,7 +1887,8 @@ mod tests {
 
     #[test]
     fn test_rewrite_available_updates() -> Result<(), Box<dyn std::error::Error>> {
-        let input = "SELECT array(select unnest from unnest(available_versions) where unnest > extversion)";
+        let input =
+            "SELECT array(select unnest from unnest(available_versions) where unnest > extversion)";
         let expected = "SELECT NULL";
         assert_eq!(rewrite_available_updates(input).unwrap(), expected);
         Ok(())
@@ -1859,7 +1920,10 @@ mod tests {
     fn test_rewrite_regoperator_cast() -> Result<(), Box<dyn std::error::Error>> {
         let cases = vec![
             ("SELECT x::regoperator", "SELECT x::TEXT"),
-            ("SELECT x::pg_catalog.regoperator::varchar", "SELECT x::TEXT::VARCHAR"),
+            (
+                "SELECT x::pg_catalog.regoperator::varchar",
+                "SELECT x::TEXT::VARCHAR",
+            ),
         ];
 
         for (input, expected) in cases {
@@ -1873,7 +1937,10 @@ mod tests {
     fn test_rewrite_regprocedure_cast() -> Result<(), Box<dyn std::error::Error>> {
         let cases = vec![
             ("SELECT x::regprocedure", "SELECT x::TEXT"),
-            ("SELECT x::pg_catalog.regprocedure::varchar", "SELECT x::TEXT::VARCHAR"),
+            (
+                "SELECT x::pg_catalog.regprocedure::varchar",
+                "SELECT x::TEXT::VARCHAR",
+            ),
         ];
 
         for (input, expected) in cases {
@@ -1887,7 +1954,10 @@ mod tests {
     fn test_rewrite_regproc_cast() -> Result<(), Box<dyn std::error::Error>> {
         let cases = vec![
             ("SELECT x::regproc", "SELECT x::TEXT"),
-            ("SELECT x::pg_catalog.regproc::varchar", "SELECT x::TEXT::VARCHAR"),
+            (
+                "SELECT x::pg_catalog.regproc::varchar",
+                "SELECT x::TEXT::VARCHAR",
+            ),
         ];
 
         for (input, expected) in cases {
@@ -1922,10 +1992,10 @@ mod tests {
 
     #[test]
     fn test_alias_subquery_tables() -> Result<(), Box<dyn std::error::Error>> {
-        let sql = "SELECT (SELECT count(*) FROM pg_trigger WHERE tgrelid = rel.oid) FROM pg_class rel";
+        let sql =
+            "SELECT (SELECT count(*) FROM pg_trigger WHERE tgrelid = rel.oid) FROM pg_class rel";
         let out = alias_subquery_tables(sql)?;
         assert!(out.contains("FROM pg_catalog.pg_trigger AS subq0_t"));
         Ok(())
     }
-
 }

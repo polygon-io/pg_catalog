@@ -3,10 +3,7 @@
 // Added to better mimic PostgreSQL planning.
 
 use datafusion::{
-    common::{
-        tree_node::Transformed,
-        Result,
-    },
+    common::{tree_node::Transformed, Result},
     logical_expr::{Expr, LogicalPlan},
     optimizer::{ApplyOrder, OptimizerConfig, OptimizerRule},
 };
@@ -15,10 +12,14 @@ use datafusion::{
 pub struct StripPgGetOne;
 
 impl OptimizerRule for StripPgGetOne {
-    fn name(&self) -> &str { "strip_pg_get_one" }
+    fn name(&self) -> &str {
+        "strip_pg_get_one"
+    }
 
     // ask the optimiser framework to call us bottom‑up on every node
-    fn apply_order(&self) -> Option<ApplyOrder> { Some(ApplyOrder::BottomUp) }
+    fn apply_order(&self) -> Option<ApplyOrder> {
+        Some(ApplyOrder::BottomUp)
+    }
 
     fn rewrite(
         &self,
@@ -39,21 +40,22 @@ impl OptimizerRule for StripPgGetOne {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use crate::user_functions::{register_pg_get_one, register_scalar_regclass_oid, RegClassOidFunc};
+    use crate::user_functions::{
+        register_pg_get_one, register_scalar_regclass_oid, RegClassOidFunc,
+    };
 
     use super::*;
     use arrow::array::{Int64Array, StringArray};
     use arrow::datatypes::{DataType, Field, Schema};
     use arrow::record_batch::RecordBatch;
     use datafusion::catalog::memory::{MemoryCatalogProvider, MemorySchemaProvider};
+    use datafusion::catalog::{CatalogProvider, SchemaProvider};
     use datafusion::datasource::MemTable;
     use datafusion::error::Result;
     use datafusion::prelude::*;
     use std::sync::Arc;
-    use datafusion::catalog::{CatalogProvider, SchemaProvider};
 
     /* TODO:
 
@@ -67,7 +69,6 @@ mod tests {
 
 
      */
-
 
     async fn make_ctx() -> Result<SessionContext> {
         let mut config = datafusion::execution::context::SessionConfig::new()
@@ -101,7 +102,6 @@ mod tests {
         Ok(ctx)
     }
 
-
     #[tokio::test]
     async fn test_pggetone_correlated_subquery() -> Result<()> {
         use crate::logical_plan_rules::StripPgGetOne;
@@ -129,5 +129,4 @@ mod tests {
         assert_eq!(col.value(0), "pg_constraint");
         Ok(())
     }
-
 }

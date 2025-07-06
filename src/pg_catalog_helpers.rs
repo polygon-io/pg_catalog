@@ -1,11 +1,9 @@
+use arrow::array::Int64Array;
+use datafusion::common::ScalarValue;
 use datafusion::error::{DataFusionError, Result as DFResult};
-use serde::{Deserialize};
-use std::collections::BTreeMap;
 use datafusion::execution::context::SessionContext;
-use datafusion::{
-    common::ScalarValue,
-};
-use arrow::array::{Int64Array};
+use serde::Deserialize;
+use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicI32, Ordering};
 
 #[derive(Debug, Clone, Deserialize)]
@@ -26,23 +24,28 @@ fn map_type_to_oid(t: &str) -> i32 {
     }
 }
 
-pub async fn register_user_database(ctx:&SessionContext, database_name:&str) -> DFResult<()> {
+pub async fn register_user_database(ctx: &SessionContext, database_name: &str) -> DFResult<()> {
     // let oid = NEXT_OID.fetch_add(1, Ordering::SeqCst);
 
-    let df: datafusion::prelude::DataFrame = ctx.sql("SELECT datname FROM pg_catalog.pg_database where datname=$database_name")
+    let df: datafusion::prelude::DataFrame = ctx
+        .sql("SELECT datname FROM pg_catalog.pg_database where datname=$database_name")
         .await?
-        .with_param_values(vec![
-           ("database_name", ScalarValue::from(database_name))
-        ])?;
+        .with_param_values(vec![("database_name", ScalarValue::from(database_name))])?;
     if df.count().await? == 0 {
-
-        let getiddf = ctx.sql("select max(oid)+1 from pg_catalog.pg_database").await?;
+        let getiddf = ctx
+            .sql("select max(oid)+1 from pg_catalog.pg_database")
+            .await?;
         let batches = getiddf.collect().await?;
-        let array = batches[0].column(0).as_any().downcast_ref::<Int64Array>().unwrap();
+        let array = batches[0]
+            .column(0)
+            .as_any()
+            .downcast_ref::<Int64Array>()
+            .unwrap();
         let dbid = array.value(0);
 
-
-        let df = ctx.sql(&format!("INSERT INTO pg_catalog.pg_database (
+        let df = ctx
+            .sql(&format!(
+                "INSERT INTO pg_catalog.pg_database (
             oid,
             datname,
             datdba,
@@ -71,12 +74,15 @@ pub async fn register_user_database(ctx:&SessionContext, database_name:&str) -> 
             1663,
             ARRAY['=Tc/dbuser', 'dbuser=CTc/dbuser']
         );",
-            dbid,
-            database_name.replace('\'', "''")
-        )).await?;
+                dbid,
+                database_name.replace('\'', "''")
+            ))
+            .await?;
         df.collect().await?;
     }
-    let df = ctx.sql("select datname from pg_catalog.pg_database").await?;
+    let df = ctx
+        .sql("select datname from pg_catalog.pg_database")
+        .await?;
     df.show().await?;
     Ok(())
 }
@@ -102,8 +108,6 @@ pub async fn register_schema(
 
     Ok(())
 }
-
-
 
 pub async fn register_user_tables(
     ctx: &SessionContext,
@@ -204,7 +208,7 @@ mod tests {
             Some("pg_catalog_data/pg_schema"),
             "pgtry".to_string(),
             "public".to_string(),
-            None
+            None,
         )
         .await?;
 
@@ -213,12 +217,18 @@ mod tests {
         let mut c1 = BTreeMap::new();
         c1.insert(
             "id".to_string(),
-            ColumnDef { col_type: "int".to_string(), nullable: true },
+            ColumnDef {
+                col_type: "int".to_string(),
+                nullable: true,
+            },
         );
         let mut c2 = BTreeMap::new();
         c2.insert(
             "name".to_string(),
-            ColumnDef { col_type: "text".to_string(), nullable: true },
+            ColumnDef {
+                col_type: "text".to_string(),
+                nullable: true,
+            },
         );
 
         register_user_tables(&ctx, "pgtry", "myschema", "contacts", vec![c1, c2]).await?;
@@ -258,7 +268,7 @@ mod tests {
             Some("pg_catalog_data/pg_schema"),
             "pgtry".to_string(),
             "public".to_string(),
-            None
+            None,
         )
         .await?;
 
@@ -267,15 +277,28 @@ mod tests {
         let mut c1 = BTreeMap::new();
         c1.insert(
             "id".to_string(),
-            ColumnDef { col_type: "int".to_string(), nullable: true },
+            ColumnDef {
+                col_type: "int".to_string(),
+                nullable: true,
+            },
         );
         let mut c2 = BTreeMap::new();
         c2.insert(
             "name".to_string(),
-            ColumnDef { col_type: "text".to_string(), nullable: true },
+            ColumnDef {
+                col_type: "text".to_string(),
+                nullable: true,
+            },
         );
 
-        register_user_tables(&ctx, "pgtry", "myschema", "contacts", vec![c1.clone(), c2.clone()]).await?;
+        register_user_tables(
+            &ctx,
+            "pgtry",
+            "myschema",
+            "contacts",
+            vec![c1.clone(), c2.clone()],
+        )
+        .await?;
         // call again to ensure idempotency
         register_user_tables(&ctx, "pgtry", "myschema", "contacts", vec![c1, c2]).await?;
 
@@ -302,7 +325,7 @@ mod tests {
             Some("pg_catalog_data/pg_schema"),
             "pgtry".to_string(),
             "public".to_string(),
-            None
+            None,
         )
         .await?;
 
@@ -321,7 +344,7 @@ mod tests {
             Some("pg_catalog_data/pg_schema"),
             "pgtry".to_string(),
             "public".to_string(),
-            None
+            None,
         )
         .await?;
 

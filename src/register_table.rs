@@ -2,15 +2,16 @@ use std::sync::Arc;
 
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
-use datafusion::catalog::{CatalogProvider, MemoryCatalogProvider, MemorySchemaProvider, SchemaProvider};
+use datafusion::catalog::{
+    CatalogProvider, MemoryCatalogProvider, MemorySchemaProvider, SchemaProvider,
+};
 use datafusion::datasource::MemTable;
-use datafusion::execution::context::SessionContext;
 use datafusion::error::Result;
-
+use datafusion::execution::context::SessionContext;
 
 /// Register a new datafusion memtable in the given catalog and schema.
 /// Creates the catalog or schema if it does not exist.
-/// Example: 
+/// Example:
 /// ```text
 ///  use datafusion_pg_catalog::register_table::register_table;
 ///  register_table(
@@ -102,10 +103,7 @@ mod tests {
         assert_eq!(count, 0);
 
         // verify nullability settings
-        let table = schema
-            .table("mytable")
-            .await?
-            .expect("table should exist");
+        let table = schema.table("mytable").await?.expect("table should exist");
         let schema = table.schema();
         let fields = schema.fields();
         assert!(!fields[0].is_nullable());

@@ -82,7 +82,6 @@ pub fn rewrite_group_by_for_any(sql: &str) -> String {
         .join("; ")
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
