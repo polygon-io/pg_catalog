@@ -7,8 +7,10 @@ use std::sync::{Arc, Mutex};
 use arrow::array::{Array, ArrayRef, Float32Array, Float64Array};
 use async_trait::async_trait;
 use bytes::Bytes;
+use datafusion::execution::SendableRecordBatchStream;
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use futures::stream::BoxStream;
-use futures::{stream, Stream};
+use futures::{stream, Stream, TryFutureExt, TryStreamExt};
 use pgwire::api::auth::md5pass::{hash_md5_password, Md5PasswordAuthStartupHandler};
 use pgwire::api::auth::{AuthSource, DefaultServerParameterProvider, LoginInfo, Password};
 use pgwire::api::copy::NoopCopyHandler;
@@ -759,13 +761,23 @@ impl SimpleQueryHandler for DatafusionBackend {
                     ],
                 )
                 .unwrap();
-                Ok((vec![batch], schema))
+                // Ok((vec![batch], schema))
+                Ok(Box::pin(RecordBatchStreamAdapter::new(
+                    schema,
+                    stream::once(async { Ok(batch) }),
+                )) as SendableRecordBatchStream)
             } else {
                 execute_sql(ctx, sql, p, t).await
             }
         })
-        .await;
-        let (results, schema) = match exec_res {
+        .and_then(|stream| {
+            let schema = stream.schema();
+            stream
+                .try_collect::<Vec<RecordBatch>>()
+                .map_ok(move |results| (results, schema))
+        });
+
+        let (results, schema) = match exec_res.await {
             Ok(v) => v,
             Err(e) => {
                 if let Some(c) = &self.capture {
@@ -905,14 +917,23 @@ impl ExtendedQueryHandler for DatafusionBackend {
                         ],
                     )
                     .unwrap();
-                    Ok((vec![batch], schema))
+                    Ok(Box::pin(RecordBatchStreamAdapter::new(
+                        schema,
+                        stream::once(async { Ok(batch) }),
+                    )) as SendableRecordBatchStream)
                 } else {
                     execute_sql(ctx, sql, params, types).await
                 }
             },
         )
-        .await;
-        let (results, schema) = match exec_res {
+        .and_then(|stream| {
+            let schema = stream.schema();
+            stream
+                .try_collect::<Vec<RecordBatch>>()
+                .map_ok(move |results| (results, schema))
+        });
+
+        let (results, schema) = match exec_res.await {
             Ok(v) => v,
             Err(e) => {
                 if let Some(c) = &self.capture {
@@ -998,6 +1019,12 @@ impl ExtendedQueryHandler for DatafusionBackend {
         }
 
         let (results, schema) = execute_sql(&self.ctx, stmt.statement.as_str(), None, None)
+            .and_then(|stream| {
+                let schema = stream.schema();
+                stream
+                    .try_collect::<Vec<RecordBatch>>()
+                    .map_ok(move |results| (results, schema))
+            })
             .await
             .map_err(|e| PgWireError::ApiError(Box::new(e)))?;
 
@@ -1065,6 +1092,12 @@ impl ExtendedQueryHandler for DatafusionBackend {
             Some(portal.parameters.clone()),
             Some(portal.statement.parameter_types.clone()),
         )
+        .and_then(|stream| {
+            let schema = stream.schema();
+            stream
+                .try_collect::<Vec<RecordBatch>>()
+                .map_ok(move |results| (results, schema))
+        })
         .await
         .map_err(|e| PgWireError::ApiError(Box::new(e)))?;
 

@@ -8,6 +8,9 @@ use arrow::record_batch::RecordBatch;
 use datafusion::catalog::memory::{MemoryCatalogProvider, MemorySchemaProvider};
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionContext;
+use datafusion::execution::SendableRecordBatchStream;
+use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
+use futures::StreamExt;
 use serde::Deserialize;
 use serde_yaml;
 
@@ -384,10 +387,13 @@ pub async fn execute_sql(
     sql: &str,
     vec: Option<Vec<Option<Bytes>>>,
     vec0: Option<Vec<Type>>,
-) -> datafusion::error::Result<(Vec<RecordBatch>, Arc<Schema>)> {
+) -> datafusion::error::Result<SendableRecordBatchStream> {
     let params_for_log = vec.clone();
     match execute_sql_inner(ctx, sql, vec, vec0).await {
-        Ok(v) => Ok(v),
+        Ok((batches, schema)) => Ok(Box::pin(RecordBatchStreamAdapter::new(
+            schema,
+            futures::stream::iter(batches).map(Ok),
+        ))),
         Err(e) => {
             log::error!("exec_error query: {:?}", sql);
             log::error!("exec_error params: {:?}", params_for_log);

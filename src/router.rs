@@ -15,7 +15,7 @@ use std::sync::Arc;
 use arrow::datatypes::Schema;
 use arrow::record_batch::RecordBatch;
 use datafusion::execution::context::SessionContext;
-use datafusion::execution::FunctionRegistry;
+use datafusion::execution::{FunctionRegistry, SendableRecordBatchStream};
 use log::debug;
 
 use crate::session::{execute_sql, ClientOpts};
@@ -327,10 +327,10 @@ pub async fn dispatch_query<'a, F, Fut>(
     params: Option<Vec<Option<Bytes>>>,
     param_types: Option<Vec<Type>>,
     handler: F,
-) -> datafusion::error::Result<(Vec<RecordBatch>, Arc<Schema>)>
+) -> datafusion::error::Result<SendableRecordBatchStream>
 where
     F: Fn(&'a SessionContext, &'a str, Option<Vec<Option<Bytes>>>, Option<Vec<Type>>) -> Fut,
-    Fut: std::future::Future<Output = datafusion::error::Result<(Vec<RecordBatch>, Arc<Schema>)>>,
+    Fut: std::future::Future<Output = datafusion::error::Result<SendableRecordBatchStream>>,
 {
     if is_catalog_query(ctx, sql)? {
         debug!("is_catalog_query True");
@@ -348,6 +348,8 @@ mod tests {
     use crate::register_table::register_table;
     use crate::user_functions::register_version_fn;
     use arrow::datatypes::DataType;
+    use datafusion::physical_plan::EmptyRecordBatchStream;
+    use futures::{StreamExt, TryStreamExt};
     use std::sync::{Arc, Mutex};
 
     #[tokio::test]
@@ -367,11 +369,17 @@ mod tests {
             let called_clone = called_clone.clone();
             async move {
                 *called_clone.lock().unwrap() = true;
-                Ok((Vec::new(), Arc::new(Schema::empty())))
+                Ok(
+                    Box::pin(EmptyRecordBatchStream::new(Arc::new(Schema::empty())))
+                        as SendableRecordBatchStream,
+                )
             }
         };
 
-        let _ = dispatch_query(&ctx, "SELECT * FROM users", None, None, handler).await?;
+        let _ = dispatch_query(&ctx, "SELECT * FROM users", None, None, handler)
+            .await?
+            .try_collect::<Vec<_>>()
+            .await?;
         assert!(*called.lock().unwrap());
         Ok(())
     }
@@ -392,7 +400,10 @@ mod tests {
             let called_clone = called_clone.clone();
             async move {
                 *called_clone.lock().unwrap() = true;
-                Ok((Vec::new(), Arc::new(Schema::empty())))
+                Ok(
+                    Box::pin(EmptyRecordBatchStream::new(Arc::new(Schema::empty())))
+                        as SendableRecordBatchStream,
+                )
             }
         };
 
@@ -403,6 +414,8 @@ mod tests {
             None,
             handler,
         )
+        .await?
+        .try_collect::<Vec<_>>()
         .await?;
         assert!(!*called.lock().unwrap());
         Ok(())
@@ -425,11 +438,17 @@ mod tests {
             let called_clone = called_clone.clone();
             async move {
                 *called_clone.lock().unwrap() = true;
-                Ok((Vec::new(), Arc::new(Schema::empty())))
+                Ok(
+                    Box::pin(EmptyRecordBatchStream::new(Arc::new(Schema::empty())))
+                        as SendableRecordBatchStream,
+                )
             }
         };
 
-        let _ = dispatch_query(&ctx, "SELECT * FROM pg_class", None, None, handler).await?;
+        let _ = dispatch_query(&ctx, "SELECT * FROM pg_class", None, None, handler)
+            .await?
+            .try_collect::<Vec<_>>()
+            .await?;
         assert!(!*called.lock().unwrap());
         Ok(())
     }
@@ -466,11 +485,17 @@ mod tests {
             let called_clone = called_clone.clone();
             async move {
                 *called_clone.lock().unwrap() = true;
-                Ok((Vec::new(), Arc::new(Schema::empty())))
+                Ok(
+                    Box::pin(EmptyRecordBatchStream::new(Arc::new(Schema::empty())))
+                        as SendableRecordBatchStream,
+                )
             }
         };
 
-        let _ = dispatch_query(&ctx, "SELECT * FROM pg_class", None, None, handler).await?;
+        let _ = dispatch_query(&ctx, "SELECT * FROM pg_class", None, None, handler)
+            .await?
+            .try_collect::<Vec<_>>()
+            .await?;
         assert!(*called.lock().unwrap());
         Ok(())
     }
@@ -492,7 +517,10 @@ mod tests {
             let captured_clone = captured_clone.clone();
             async move {
                 *captured_clone.lock().unwrap() = params;
-                Ok((Vec::new(), Arc::new(Schema::empty())))
+                Ok(
+                    Box::pin(EmptyRecordBatchStream::new(Arc::new(Schema::empty())))
+                        as SendableRecordBatchStream,
+                )
             }
         };
 
@@ -505,6 +533,8 @@ mod tests {
             Some(types),
             handler,
         )
+        .await?
+        .try_collect::<Vec<_>>()
         .await?;
         assert_eq!(*captured.lock().unwrap(), Some(params));
         Ok(())
@@ -521,11 +551,17 @@ mod tests {
             let called_clone = called_clone.clone();
             async move {
                 *called_clone.lock().unwrap() = true;
-                Ok((Vec::new(), Arc::new(Schema::empty())))
+                Ok(
+                    Box::pin(EmptyRecordBatchStream::new(Arc::new(Schema::empty())))
+                        as SendableRecordBatchStream,
+                )
             }
         };
 
-        let _ = dispatch_query(&ctx, "SELECT pg_catalog.version()", None, None, handler).await?;
+        let _ = dispatch_query(&ctx, "SELECT pg_catalog.version()", None, None, handler)
+            .await?
+            .try_collect::<Vec<_>>()
+            .await?;
         assert!(!*called.lock().unwrap());
         Ok(())
     }
@@ -542,11 +578,17 @@ mod tests {
             let called_clone = called_clone.clone();
             async move {
                 *called_clone.lock().unwrap() = true;
-                Ok((Vec::new(), Arc::new(Schema::empty())))
+                Ok(
+                    Box::pin(EmptyRecordBatchStream::new(Arc::new(Schema::empty())))
+                        as SendableRecordBatchStream,
+                )
             }
         };
 
-        let _ = dispatch_query(&ctx, "SELECT version()", None, None, handler).await?;
+        let _ = dispatch_query(&ctx, "SELECT version()", None, None, handler)
+            .await?
+            .try_collect::<Vec<_>>()
+            .await?;
         assert!(!*called.lock().unwrap());
         Ok(())
     }

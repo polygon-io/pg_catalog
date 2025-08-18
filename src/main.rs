@@ -111,17 +111,26 @@ async fn main() -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use arrow::datatypes::Schema;
-    use datafusion::execution::context::SessionContext;
+    use arrow::{array::RecordBatch, datatypes::Schema};
+    use datafusion::{
+        execution::{context::SessionContext, SendableRecordBatchStream},
+        physical_plan::EmptyRecordBatchStream,
+    };
     use datafusion_pg_catalog::router::dispatch_query;
+    use futures::TryStreamExt;
     use std::sync::Arc;
 
     #[tokio::test]
     async fn test_dispatch_in_main() -> anyhow::Result<()> {
         let ctx = SessionContext::new();
         dispatch_query(&ctx, "SELECT 1", None, None, |_c, _q, _p, _t| async {
-            Ok((Vec::new(), Arc::new(Schema::empty())))
+            Ok(
+                Box::pin(EmptyRecordBatchStream::new(Arc::new(Schema::empty())))
+                    as SendableRecordBatchStream,
+            )
         })
+        .await?
+        .try_collect::<Vec<RecordBatch>>()
         .await?;
         Ok(())
     }

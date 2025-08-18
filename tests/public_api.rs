@@ -1,6 +1,10 @@
+use arrow::array::RecordBatch;
 use arrow::datatypes::Schema;
 use datafusion::execution::context::SessionContext;
+use datafusion::execution::SendableRecordBatchStream;
+use datafusion::physical_plan::EmptyRecordBatchStream;
 use datafusion_pg_catalog::{dispatch_query, get_base_session_context, start_server};
+use futures::TryStreamExt;
 use std::fs::File;
 use std::io::Read;
 use std::io::Write as IoWrite;
@@ -19,11 +23,17 @@ async fn test_dispatch_query_public() -> datafusion::error::Result<()> {
         let called_clone = called_clone.clone();
         async move {
             *called_clone.lock().unwrap() = true;
-            Ok((Vec::new(), Arc::new(Schema::empty())))
+            Ok(
+                Box::pin(EmptyRecordBatchStream::new(Arc::new(Schema::empty())))
+                    as SendableRecordBatchStream,
+            )
         }
     };
 
-    dispatch_query(&ctx, "SELECT 1", None, None, handler).await?;
+    dispatch_query(&ctx, "SELECT 1", None, None, handler)
+        .await?
+        .try_collect::<Vec<RecordBatch>>()
+        .await?;
     assert!(*called.lock().unwrap());
     Ok(())
 }
