@@ -18,4 +18,4 @@ pub use pg_catalog_helpers::*;
 // Re-export commonly used functions at crate root for convenience.
 pub use router::dispatch_query;
 pub use server::start_server;
-pub use session::get_base_session_context;
+pub use session::{get_base_session_context, setup_context};
