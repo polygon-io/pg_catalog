@@ -87,11 +87,12 @@ pub struct RegClassOidFunc;
 
 impl TableFunctionImpl for RegClassOidFunc {
     fn call(&self, exprs: &[Expr]) -> Result<Arc<dyn TableProvider>> {
-        let relname = if let Some(Expr::Literal(ScalarValue::Utf8(Some(ref s)))) = exprs.first() {
-            s.clone()
-        } else {
-            return plan_err!("regclass_oid requires one string argument");
-        };
+        let relname =
+            if let Some(Expr::Literal(ScalarValue::Utf8(Some(ref s)), None)) = exprs.first() {
+                s.clone()
+            } else {
+                return plan_err!("regclass_oid requires one string argument");
+            };
         let schema = Arc::new(Schema::new(vec![Field::new("oid", DataType::Int64, true)]));
         Ok(Arc::new(RegClassOidTable { schema, relname }))
     }
@@ -843,16 +844,6 @@ pub fn register_scalar_array_to_string(ctx: &SessionContext) -> Result<()> {
                     "unsupported argument to array_to_string".into(),
                 )),
             }
-        }
-
-        fn return_type_from_args(
-            &self,
-            args: datafusion::logical_expr::ReturnTypeArgs,
-        ) -> Result<datafusion::logical_expr::ReturnInfo> {
-            let return_type = self.return_type(args.arg_types)?;
-            Ok(datafusion::logical_expr::ReturnInfo::new_nullable(
-                return_type,
-            ))
         }
 
         fn is_nullable(
