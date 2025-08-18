@@ -775,27 +775,40 @@ fn default_current_schemas(ctx: &SessionContext) -> Vec<String> {
     vec!["pg_catalog".to_string(), user_schema]
 }
 
-pub async fn get_base_session_context(
+pub async fn setup_context(
+    ctx: &mut SessionContext,
     schema_path: Option<&str>,
-    default_catalog: String,
-    default_schema: String,
     current_schemas_getter: Option<Arc<dyn Fn(&SessionContext) -> Vec<String> + Send + Sync>>,
-) -> datafusion::error::Result<(SessionContext, Arc<Mutex<Vec<ScanTrace>>>)> {
+) -> datafusion::error::Result<Arc<Mutex<Vec<ScanTrace>>>> {
     let _current_schemas_getter: Arc<dyn Fn(&SessionContext) -> Vec<String> + Send + Sync> =
         current_schemas_getter.unwrap_or_else(|| Arc::new(default_current_schemas));
 
     let log: Arc<Mutex<Vec<ScanTrace>>> = Arc::new(Mutex::new(Vec::new()));
 
     let schemas = parse_schema(schema_path);
-    let mut session_config = datafusion::execution::context::SessionConfig::new()
-        .with_default_catalog_and_schema(&default_catalog, &default_schema)
-        .with_option_extension(ClientOpts::default());
 
-    // This should be false, otherwise datafusion uses it's own inf schema
-    session_config.options_mut().catalog.information_schema = false;
+    let session_config = ctx
+        .copied_config()
+        .with_option_extension(ClientOpts::default())
+        .set_bool("datafusion.catalog.information_schema", false);
 
-    let ctx: SessionContext = SessionContext::new_with_config(session_config);
-    register_catalogs_from_schemas(&ctx, schemas, default_catalog, log.clone())?;
+    *ctx = SessionContext::new_with_state(
+        ctx.clone()
+            .into_state_builder()
+            .with_config(session_config)
+            .build(),
+    );
+
+    register_catalogs_from_schemas(
+        &ctx,
+        schemas,
+        ctx.copied_config()
+            .options()
+            .catalog
+            .default_catalog
+            .clone(),
+        log.clone(),
+    )?;
 
     for f in regclass_udfs(&ctx) {
         ctx.register_udf(f);
@@ -857,6 +870,22 @@ pub async fn get_base_session_context(
     log::info!("registered catalogs: {:?}", catalogs);
 
     // println!("Current catalog: {}", default_catalog);
+
+    Ok(log)
+}
+
+pub async fn get_base_session_context(
+    schema_path: Option<&str>,
+    default_catalog: String,
+    default_schema: String,
+    current_schemas_getter: Option<Arc<dyn Fn(&SessionContext) -> Vec<String> + Send + Sync>>,
+) -> datafusion::error::Result<(SessionContext, Arc<Mutex<Vec<ScanTrace>>>)> {
+    let session_config = datafusion::execution::context::SessionConfig::new()
+        .with_default_catalog_and_schema(&default_catalog, &default_schema);
+
+    let mut ctx: SessionContext = SessionContext::new_with_config(session_config);
+
+    let log = setup_context(&mut ctx, schema_path, current_schemas_getter).await?;
 
     Ok((ctx, log))
 }
