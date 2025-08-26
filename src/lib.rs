@@ -19,3 +19,5 @@ pub use pg_catalog_helpers::*;
 pub use router::{is_catalog_query, qualify_catalog_tables, dispatch_query};
 pub use server::start_server;
 pub use session::{get_base_session_context, setup_context, execute_sql, rewrite_filters};
+
+pub use df_subquery_udf;
