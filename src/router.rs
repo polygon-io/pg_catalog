@@ -116,7 +116,10 @@ fn qualify_query(ctx: &SessionContext, query: &mut Query) {
 }
 
 /// Parse the SQL string and fully qualify catalog table references.
-fn qualify_catalog_tables(ctx: &SessionContext, sql: &str) -> datafusion::error::Result<String> {
+pub fn qualify_catalog_tables(
+    ctx: &SessionContext,
+    sql: &str,
+) -> datafusion::error::Result<String> {
     let dialect = PostgreSqlDialect {};
     let mut statements = Parser::parse_sql(&dialect, sql)?;
     for stmt in &mut statements {
@@ -309,7 +312,7 @@ fn statement_has_catalog(ctx: &SessionContext, stmt: &Statement) -> bool {
 }
 
 /// Parse the SQL string and check whether it references catalog tables.
-fn is_catalog_query(ctx: &SessionContext, sql: &str) -> datafusion::error::Result<bool> {
+pub fn is_catalog_query(ctx: &SessionContext, sql: &str) -> datafusion::error::Result<bool> {
     let dialect = PostgreSqlDialect {};
     let statements = Parser::parse_sql(&dialect, sql)?;
     Ok(statements.iter().any(|s| statement_has_catalog(ctx, s)))

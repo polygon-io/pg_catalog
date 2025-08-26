@@ -6,6 +6,7 @@ use arrow::array::{ArrayRef, Int32Array};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::record_batch::RecordBatch;
 use datafusion::catalog::memory::{MemoryCatalogProvider, MemorySchemaProvider};
+use datafusion::common::DFSchema;
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionContext;
 use datafusion::execution::SendableRecordBatchStream;
@@ -154,7 +155,7 @@ struct TableDef {
 #[derive(Debug, Deserialize)]
 struct YamlSchema(HashMap<String, HashMap<String, HashMap<String, TableDef>>>);
 
-fn rename_columns(batch: &RecordBatch, name_map: &HashMap<String, String>) -> RecordBatch {
+pub fn rename_columns(batch: &RecordBatch, name_map: &HashMap<String, String>) -> RecordBatch {
     let new_fields = batch
         .schema()
         .fields()
@@ -186,6 +187,20 @@ fn remove_virtual_system_columns(
     batches: Vec<RecordBatch>,
     schema: Arc<Schema>,
 ) -> (Vec<RecordBatch>, Arc<Schema>) {
+    let (indices, new_schema) = remove_virtual_system_columns_schema(sql, schema);
+
+    let new_batches = batches
+        .into_iter()
+        .map(|b| b.project(&indices).unwrap())
+        .collect();
+
+    (new_batches, new_schema)
+}
+
+pub fn remove_virtual_system_columns_schema(
+    sql: &str,
+    schema: Arc<Schema>,
+) -> (Vec<usize>, Arc<Schema>) {
     let lowered = sql.to_lowercase();
     let system_cols = ["xmin", "xmax", "ctid", "tableoid", "cmin", "cmax"];
 
@@ -198,7 +213,7 @@ fn remove_virtual_system_columns(
     }
 
     if indices.len() == schema.fields().len() {
-        return (batches, schema);
+        return (indices, schema);
     }
 
     let fields = indices
@@ -207,13 +222,9 @@ fn remove_virtual_system_columns(
         .collect::<Vec<_>>();
     let new_schema = Arc::new(Schema::new(fields));
 
-    let new_batches = batches
-        .into_iter()
-        .map(|b| b.project(&indices).unwrap())
-        .collect();
-
-    (new_batches, new_schema)
+    (indices, new_schema)
 }
+
 
 pub fn print_params(params: &Vec<Option<Bytes>>) {
     for (i, param) in params.iter().enumerate() {
@@ -351,8 +362,46 @@ pub async fn execute_sql_inner(
         df
     };
 
-    // TODO: fix scope
-    let original_schema = df.schema();
+    let (results, schema) =
+        map_results_back_to_pg(&sql, df.clone().collect().await?, df.schema(), &aliases);
+
+    // after the execution of the query we do a cleanup for added udfs
+    for name in temp_udfs {
+        ctx.deregister_udf(&name);
+    }
+
+    Ok((results, schema))
+}
+
+pub fn map_results_back_to_pg(
+    sql: &str,
+    results: Vec<RecordBatch>,
+    original_schema: &DFSchema,
+    aliases: &HashMap<String, String>,
+) -> (Vec<RecordBatch>, SchemaRef) {
+    let (indices, schema) = map_schema_back_to_pg(sql, original_schema, aliases);
+    let results = results
+        .into_iter()
+        .map(|batch| map_batch_back_to_pg(batch, &indices, aliases))
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    (results, schema)
+}
+
+pub fn map_batch_back_to_pg(
+    batch: RecordBatch,
+    projection: &[usize],
+    aliases: &HashMap<String, String>,
+) -> Result<RecordBatch, arrow::error::ArrowError> {
+    let batch = rename_columns(&batch, &aliases);
+    batch.project(projection)
+}
+
+pub fn map_schema_back_to_pg(
+    sql: &str,
+    original_schema: &DFSchema,
+    aliases: &HashMap<String, String>,
+) -> (Vec<usize>, SchemaRef) {
     let renamed_fields = original_schema
         .fields()
         .iter()
@@ -366,21 +415,9 @@ pub async fn execute_sql_inner(
         .collect::<Vec<_>>();
     let schema = Arc::new(Schema::new(renamed_fields));
 
-    let results = df.collect().await?;
-    let results = results
-        .iter()
-        .map(|batch| rename_columns(batch, &aliases))
-        .collect::<Vec<_>>();
-
-    let (results, schema) = remove_virtual_system_columns(&sql, results, schema);
-
-    // after the execution of the query we do a cleanup for added udfs
-    for name in temp_udfs {
-        ctx.deregister_udf(&name);
-    }
-
-    Ok((results, schema))
+    remove_virtual_system_columns_schema(sql, schema)
 }
+
 
 pub async fn execute_sql(
     ctx: &SessionContext,

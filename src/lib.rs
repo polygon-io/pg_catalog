@@ -16,6 +16,6 @@ pub mod user_functions;
 // Re-export all public functions from pg_catalog_helpers for convenience.
 pub use pg_catalog_helpers::*;
 // Re-export commonly used functions at crate root for convenience.
-pub use router::dispatch_query;
+pub use router::{is_catalog_query, qualify_catalog_tables, dispatch_query};
 pub use server::start_server;
-pub use session::{get_base_session_context, setup_context};
+pub use session::{get_base_session_context, setup_context, execute_sql, rewrite_filters};

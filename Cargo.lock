@@ -959,7 +959,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "arrow",
  "arrow-ipc",
@@ -1013,7 +1013,7 @@ dependencies = [
 [[package]]
 name = "datafusion-catalog"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1038,7 +1038,7 @@ dependencies = [
 [[package]]
 name = "datafusion-catalog-listing"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1060,7 +1060,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "ahash 0.8.11",
  "apache-avro",
@@ -1084,7 +1084,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common-runtime"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "futures",
  "log",
@@ -1094,7 +1094,7 @@ dependencies = [
 [[package]]
 name = "datafusion-datasource"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "arrow",
  "async-compression",
@@ -1129,7 +1129,7 @@ dependencies = [
 [[package]]
 name = "datafusion-datasource-avro"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "apache-avro",
  "arrow",
@@ -1153,7 +1153,7 @@ dependencies = [
 [[package]]
 name = "datafusion-datasource-csv"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1177,7 +1177,7 @@ dependencies = [
 [[package]]
 name = "datafusion-datasource-json"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1201,7 +1201,7 @@ dependencies = [
 [[package]]
 name = "datafusion-datasource-parquet"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1231,12 +1231,12 @@ dependencies = [
 [[package]]
 name = "datafusion-doc"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 
 [[package]]
 name = "datafusion-execution"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "arrow",
  "dashmap",
@@ -1254,7 +1254,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "arrow",
  "chrono",
@@ -1274,7 +1274,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr-common"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1286,7 +1286,7 @@ dependencies = [
 [[package]]
 name = "datafusion-functions"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "arrow",
  "arrow-buffer",
@@ -1314,7 +1314,7 @@ dependencies = [
 [[package]]
 name = "datafusion-functions-aggregate"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "ahash 0.8.11",
  "arrow",
@@ -1334,7 +1334,7 @@ dependencies = [
 [[package]]
 name = "datafusion-functions-aggregate-common"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "ahash 0.8.11",
  "arrow",
@@ -1346,7 +1346,7 @@ dependencies = [
 [[package]]
 name = "datafusion-functions-nested"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "arrow",
  "arrow-ord",
@@ -1366,7 +1366,7 @@ dependencies = [
 [[package]]
 name = "datafusion-functions-table"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1381,7 +1381,7 @@ dependencies = [
 [[package]]
 name = "datafusion-functions-window"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1398,7 +1398,7 @@ dependencies = [
 [[package]]
 name = "datafusion-functions-window-common"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "datafusion-common",
  "datafusion-physical-expr-common",
@@ -1407,7 +1407,7 @@ dependencies = [
 [[package]]
 name = "datafusion-macros"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "datafusion-expr",
  "quote",
@@ -1417,7 +1417,7 @@ dependencies = [
 [[package]]
 name = "datafusion-optimizer"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "arrow",
  "chrono",
@@ -1435,7 +1435,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "ahash 0.8.11",
  "arrow",
@@ -1456,7 +1456,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr-common"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "ahash 0.8.11",
  "arrow",
@@ -1469,7 +1469,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-optimizer"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1487,7 +1487,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-plan"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "ahash 0.8.11",
  "arrow",
@@ -1516,7 +1516,7 @@ dependencies = [
 [[package]]
 name = "datafusion-session"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1539,7 +1539,7 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "48.0.1"
-source = "git+https://github.com/polygon-io/arrow-datafusion?rev=054d193#054d193ebf4882642e069de48f413119efab1007"
+source = "git+https://github.com/polygon-io/arrow-datafusion?rev=6e71350#6e713502b94b42fbd0a54ef0b7bedb151ddded5f"
 dependencies = [
  "arrow",
  "bigdecimal",
@@ -1603,7 +1603,7 @@ dependencies = [
 [[package]]
 name = "df_subquery_udf"
 version = "0.1.0"
-source = "git+https://github.com/polygon-io/corr-subq-udf-rs?branch=main#327c803952341d02c6633a14b3d20208dafdd9e5"
+source = "git+https://github.com/polygon-io/corr-subq-udf-rs?rev=68b4936#68b4936461bdcbfa79f3ebcd7ca2bb46556bba2a"
 dependencies = [
  "arrow",
  "datafusion",
